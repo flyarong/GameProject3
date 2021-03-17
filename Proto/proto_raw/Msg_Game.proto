@@ -1,10 +1,5 @@
 ﻿syntax = "proto3";
-
-message SkillItem {
-    uint32 SkillID = 1;
-    int32  Level = 2;
-    int32  KeyPos = 3;   //强化等级
-}
+import "Msg_Base.proto";
 
 message GmStopServerReq {
     uint32    Data        	= 1;
@@ -13,66 +8,6 @@ message GmStopServerReq {
 message GmStopServerAck {
     uint32    RetCode       = 1;
 }
-
-
-message CheckVersionReq {
-    string   ClientVerion   = 1;
-    int32    Channel        = 2;
-}
-
-message CheckVersionAck {
-    uint32    RetCode        = 1;
-    string    ClientVerion   = 2;
-}
-
-message AccountRegReq {
-    string   AccountName = 1;
-    string   Password    = 2;
-    int32    Channel     = 3;
-    string   ClientVerion= 4;
-}
-
-message AccountRegAck {
-    uint32    RetCode      = 1;
-    uint64    AccountID    = 2; //账号ID
-}
-
-message AccountLoginReq {
-    string    AccountName    = 1;
-    string    Password       = 2;
-    int32     Channel        = 3;
-    string    ClientVerion   = 4;
-    uint32    FromChannel    = 5;
-}
-
-message AccountLoginAck {
-    uint32    RetCode        = 1;
-    uint64    AccountID      = 2;
-    int32     LastSvrID      = 3;  //上次登录SvrID
-    string    LastSvrName    = 4;
-}
-
-
-message ClientServerListReq {
-    uint64    AccountID      = 1;
-    int32     Channel        = 2; //渠道包
-    string    ClientVersion  = 3; //客户端版本号
-}
-
-
-message ClientServerNode {
-    int32    SvrID          = 1;
-    string   SvrName        = 2;
-    int32    SvrState       = 3;
-    int32    SvrFlag        = 4;
-    int32    SvrOpenTime    = 5;
-}
-
-message ClientServerListAck {
-    uint32    RetCode    = 1;
-    repeated ClientServerNode SvrNode    = 2;
-}
-
 
 message SvrRegToSvrReq {
     int32     ServerID      = 1;
@@ -87,76 +22,6 @@ message SvrRegToSvrAck {
     string    NewSvrName    = 2;
 }
 
-message SelectServerReq {
-    uint64    AccountID   = 1;
-    int32     ServerID    = 2;
-}
-
-message SelectServerAck {
-    uint32   RetCode     = 1;
-    uint64   AccountID   = 2;
-    int32    ServerID    = 3;
-    string   ServerAddr  = 4;
-    int32    ServerPort  = 5;
-    int32    LoginCode   = 6;
-}
-
-message RoleItem {
-    uint64    RoleID  = 1;
-    string    Name    = 2;
-    int32     Carrer  = 3;
-    int32     Level   = 4;
-}
-
-message RoleListReq {
-    uint64   AccountID    = 1;
-    int32    LoginCode    = 2;
-}
-
-message RoleListAck {
-    uint32    RetCode            = 1;
-    uint64    AccountID          = 2;
-    repeated  RoleItem RoleList  = 3;
-}
-
-message RoleCreateReq {
-    uint64   AccountID    = 1;
-    string   Name         = 2;
-    int32    Carrer       = 3;
-    int32    Channel      = 4;
-}
-
-message RoleCreateAck {
-    uint32    RetCode      = 1;
-    uint64    AccountID    = 2;
-    uint64    RoleID       = 3;
-    string    Name         = 4;
-    int32     Carrer       = 5;
-}
-
-message RoleDeleteReq {
-    uint64    AccountID    = 1;
-    uint64    RoleID       = 2;
-}
-
-message RoleDeleteAck {
-    uint32    RetCode = 1;
-}
-
-message RoleLoginReq {
-    uint64    AccountID    = 1;
-    uint64    RoleID       = 2;
-    int32     LoginCode    = 3;
-}
-
-message RoleLogoutReq {
-    uint64    AccountID = 1;
-}
-
-message RoleLogoutAck {
-    uint32    RetCode = 1;
-}
-
 message RoleDisconnectReq {
     uint64    AccountID    = 1;
     uint64    RoleID       = 2;
@@ -169,12 +34,16 @@ message RoleDisconnectAck {
 
 message RoleReconnectReq {
     uint64    RoleID = 1;
+    uint64    AccountID = 2;
 }
 
 message RoleReconnectAck {
     uint32    RetCode = 1;
 }
 
+message RemoveConnectNty {
+    uint64    RoleID = 1;
+}
 
 ///创建场景
 message CreateNewSceneReq{
@@ -183,8 +52,6 @@ message CreateNewSceneReq{
     int32    PlayerNum     = 3;
     uint64   CreateParam   = 4;
 }
-
-
 
 ///创建场景
 message CreateNewSceneAck{
@@ -200,7 +67,7 @@ message CreateNewSceneAck{
 ////
 message EnterSceneReq {
     uint64   RoleID      = 1;
-    int32    ServerID    = 2; //场景服ID
+    int32    ServerID    = 2;  //场景服ID
     int32    CopyGuid    = 3;  //副本实例ID
     int32    CopyID      = 4;  //副本类型ID
 }
@@ -228,9 +95,6 @@ message EnterSceneAck {
     repeated int32 Equips   = 19; //武器
     repeated SkillItem Skills  = 20;//技能
 }
-
-
-
 
 message BackToCityReq {
     uint32    Param = 1;
@@ -367,9 +231,10 @@ message UseMpBottleAck {
 message ChatMessageReq {
     string    SrcName        = 1;
     uint64    SrcID          = 2;
-    int32     Channel        = 3;
-    uint64    GuildID        = 4;
-    string    Content        = 5;
+    uint64    TargetID       = 3; //目标ID
+    int32     ChatChl        = 4; //聊天频道; 
+    uint64    GuildID        = 5; //公会ID
+    string    Content        = 6;
 }
 
 message ChatMessageAck {
@@ -379,28 +244,12 @@ message ChatMessageAck {
 message ChatMessageNty {
     string    SrcName        = 1;
     uint64    SrcID          = 2;
-    int32     Channel        = 3;
-    uint64    GuildID        = 4;
-    string    Content        = 5;
-}
-
-message SealAccountReq {
-    string    AccountName  = 1;
-    uint64    AccountID    = 2;
-    int32     Channel      = 3;
-    int32     SealTime     = 4;
-    bool      Seal         = 5;
-}
-
-message SealAccountAck {
-    uint32    RetCode        = 1;
-    string    AccountName    = 2;
-    uint64    AccountID      = 3; //账号ID
-}
-
-message SetLastServerNty {
-    uint64    AccountID    = 1;
-    int32     ServerID      = 2;
+    int32     SrcLevel       = 3;
+    uint64    TargetID       = 4; //目标ID
+    int32     ChatChl        = 5;
+    uint64    GuildID        = 6;
+    uint64    TimeStamp      = 7;
+    string    Content        = 8;
 }
 
 message CommonReq {
@@ -420,7 +269,7 @@ message BroadMessageNotify {
 message LogicRegToLoginReq {
     int32    ServerID      = 1;
     string   ServerName    = 2;
-    string   ServerIp      = 3;
+    string   SvrInnerIp    = 3;
     int32    ServerPort    = 4;
     int32    HttpPort      = 5;
     int32    WatchPort     = 6;
@@ -429,6 +278,33 @@ message LogicRegToLoginReq {
 message LogicRegToLoginAck {
     uint32    RetCode       = 1;
     string    NewSvrName    = 2;
+    uint64    SvrOpenTime   = 3; //开服时间
+}
+
+message LogicRegToDbSvrReq {
+    int32    ServerID      = 1;
+    string   ServerName    = 2;
+	uint32   ProcessID     = 3;
+}
+
+message LogicRegToDbSvrAck {
+    uint32    RetCode       = 1;
+}
+
+message LogicUpdateInfoReq {
+    int32     ServerID     = 1;
+    string    ServerName   = 2;
+    int32     MaxOnline    = 3;
+    int32     CurOnline    = 4;
+    int32     TotalNum     = 5;
+    int32     CacheNum     = 6;
+    int32     Status       = 7;
+    int32     DbErrCnt     = 8; //数据库写失败次数
+}
+
+message LogicUpdateInfoAck {
+    uint32    RetCode       = 1;
+    uint64    SvrOpenTime   = 2; //开服时间
 }
 
 message WatchHeartBeatReq {
@@ -449,6 +325,21 @@ message SetupEquipReq {
 
 message SetupEquipAck {
     uint32    RetCode    = 1;
+}
+
+message Msg_GiftCodeReq{
+    uint64  RoleID     = 1;
+    string  GiftCode   = 2;
+    uint32  Channel    = 3;
+    uint64  AccountID  = 4;
+    int32   AreaID     = 5;
+    
+}
+
+message Msg_GiftCodeAck{
+    uint32   RetCode = 1;
+    uint64   RoleID  = 2;
+    repeated ItemData items = 3;
 }
 
 message UnsetEquipReq {
@@ -577,4 +468,7 @@ message MsgGetRandomNameAck {
     string Name = 1;
 }
 
+message Msg_DbErrorCountNty{
+    uint32  ErrorCount = 1;
+}
 

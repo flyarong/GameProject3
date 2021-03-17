@@ -59,14 +59,15 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\ServerEngine;..\..\Common;..\..\Common\protobuf\src;..\..\Common\MySql;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ServerEngine;..\PublicData;..\..\Common;..\..\Common\protobuf\src;..\..\Common\MySql;..\WatcherClient;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <DisableSpecificWarnings>4996;4800;</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4996;4800;4244;</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
@@ -80,14 +81,15 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\ServerEngine;..\..\Common;..\..\Common\protobuf\src;..\..\Common\MySql;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ServerEngine;..\PublicData;..\..\Common;..\..\Common\protobuf\src;..\..\Common\MySql;..\WatcherClient;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <DisableSpecificWarnings>4996;4800;</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4996;4800;4244;</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
@@ -100,6 +102,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\Message\Msg_Account.pb.cc">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\Message\Msg_Base.pb.cc">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="..\Message\Msg_Game.pb.cc">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
@@ -112,7 +122,10 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="..\WatcherClient\WatcherClient.cpp" />
     <ClCompile Include="GameService.cpp" />
+    <ClCompile Include="GiftCodeManager.cpp" />
+    <ClCompile Include="LoginClientMgr.cpp" />
     <ClCompile Include="LoginMsgHandler.cpp" />
     <ClCompile Include="LogicSvrManager.cpp" />
     <ClCompile Include="Main.cpp" />
@@ -122,15 +135,21 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="WebCommandHandler.cpp" />
+    <ClCompile Include="WebCommandMgr.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Message\Msg_Account.pb.h" />
+    <ClInclude Include="..\Message\Msg_Base.pb.h" />
     <ClInclude Include="..\Message\Msg_Game.pb.h" />
     <ClInclude Include="..\Message\Msg_ID.pb.h" />
+    <ClInclude Include="..\WatcherClient\WatcherClient.h" />
     <ClInclude Include="GameService.h" />
+    <ClInclude Include="GiftCodeManager.h" />
+    <ClInclude Include="LoginClientMgr.h" />
     <ClInclude Include="LoginMsgHandler.h" />
     <ClInclude Include="LogicSvrManager.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="WebCommandMgr.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />

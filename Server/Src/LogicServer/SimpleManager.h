@@ -1,5 +1,6 @@
 ﻿#ifndef __SIMPLE_MANAGER_H__
 #define __SIMPLE_MANAGER_H__
+
 #include "DBInterface/CppMysql.h"
 struct CSimpleInfo
 {
@@ -11,12 +12,12 @@ struct CSimpleInfo
 		m_dwCarrerID	= 0;
 		m_dwLevel		= 0;
 		m_dwVipLevel	= 0;
-		m_dwFightValue	= 0;
+		m_uFightValue	= 0;
 		m_uLogoffTime	= 0;
 		m_uLogonTime	= 0;
 		m_uCreateTime	= 0;
-		m_bOnline		= FALSE;
 		m_strName		= "";
+		m_IsDelete = FALSE;
 	}
 	UINT64	m_uRoleID;
 	UINT64	m_uAccountID;
@@ -24,12 +25,12 @@ struct CSimpleInfo
 	UINT32	m_dwCarrerID;
 	UINT32	m_dwLevel;
 	UINT32	m_dwVipLevel;
-	UINT32	m_dwFightValue;
+	UINT64	m_uFightValue;
 	UINT64	m_uLogoffTime;
 	UINT64	m_uLogonTime;
 	UINT64	m_uCreateTime;
-	BOOL	m_bOnline;
 	std::string m_strName;
+	BOOL    m_IsDelete; //是否被删除
 };
 
 class CSimpleManager
@@ -45,7 +46,7 @@ public:
 
 	BOOL	AddSimpleInfo(CSimpleInfo* pInfo);
 
-	BOOL	LoadSimpleData(CppMySQL3DB& tDBConnection);
+	BOOL	LoadData(CppMySQL3DB& tDBConnection);
 
 	UINT64	GetRoleIDByName(std::string Name);
 
@@ -57,25 +58,25 @@ public:
 	BOOL	SetLogonTime(UINT64 u64ID, UINT64 dwTime);
 	BOOL	SetLogoffTime(UINT64 u64ID, UINT64 dwTime);
 
-	UINT32	GetFightValue(UINT64 u64ID);
+	UINT64	GetFightValue(UINT64 u64ID);
 
-	BOOL	SetFightValue(UINT64 u64ID, UINT32 dwFight, UINT32 dwLevel);
+	BOOL	SetFightValue(UINT64 u64ID, UINT64 uFight, UINT32 dwLevel);
 
-	BOOL	SetPlayerName(UINT64 u64ID, std::string strName);
+	BOOL	SetName(UINT64 u64ID, std::string strName);
 
 	BOOL	SetVipLevel(UINT64 u64ID, UINT32 dwVipLvl);
 
 	BOOL	SetGuildID(UINT64 u64ID, UINT64 guildid);
 
+	BOOL	SetRoleDelete(UINT64 u64ID, BOOL bDelete);
+
 	BOOL	CheckNameExist(std::string strName);
+
+	BOOL    CheckNameFormat(std::string strName);
 
 	UINT64	GetGuildID(UINT64 u64ID);
 
 	UINT32  GetTotalCount();
-
-	UINT32  GetOnline();
-
-	BOOL	SetOnline(UINT64 u64ID, BOOL bOnline);
 
 	BOOL	GetRoleIDsByAccountID(UINT64 uAccountID, std::vector<UINT64>& vtRoleIDs);
 

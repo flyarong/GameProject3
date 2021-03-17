@@ -1,11 +1,11 @@
 ﻿#include "stdafx.h"
+#include "PlayerObject.h"
 #include "PetModule.h"
 #include "DataPool.h"
 #include "GlobalDataMgr.h"
-#include "PlayerObject.h"
-#include "../Message/Msg_ID.pb.h"
-#include "../StaticData/StaticData.h"
+#include "StaticData.h"
 #include "PacketHeader.h"
+#include "../Message/Msg_ID.pb.h"
 #include "../Message/Msg_RetCode.pb.h"
 
 CPetModule::CPetModule(CPlayerObject* pOwner): CModuleBase(pOwner)
@@ -134,6 +134,15 @@ BOOL CPetModule::ToTransferData(TransferDataItem* pTransItem)
 		pPetData->add_propertys(pActorInfo->Propertys[i]);
 	}
 
+	StActorSkillInfo* pActorSkillInfo = CStaticData::GetInstancePtr()->GetActorSkillInfo(pPetInfo->dwActorID);
+	ERROR_RETURN_FALSE(pActorSkillInfo != NULL);
+
+	SkillItem* pSkillItem = pPetData->add_skills();
+	pSkillItem->set_keypos(1);
+	pSkillItem->set_level(1);
+	pSkillItem->set_skillid(pActorSkillInfo->NormalID);
+
+
 	return TRUE;
 }
 
@@ -163,7 +172,7 @@ BOOL CPetModule::OnMsgSetupPetReq(NetPacket* pNetPacket)
 		pCurObject->Lock();
 		pCurObject->m_IsUsing = false;
 		pCurObject->Unlock();
-		m_setChange.insert(pCurObject->m_uGuid);
+		AddChangeID(pCurObject->m_uGuid);
 	}
 
 	PetDataObject* pTargetObject = GetPetByGuid(Req.petguid());
@@ -172,7 +181,7 @@ BOOL CPetModule::OnMsgSetupPetReq(NetPacket* pNetPacket)
 		pTargetObject->Lock();
 		pTargetObject->m_IsUsing = TRUE;
 		pTargetObject->Unlock();
-		m_setChange.insert(pTargetObject->m_uGuid);
+		AddChangeID(pTargetObject->m_uGuid);
 		m_pOwnPlayer->SendPlayerChange(ECT_PET, 0, pTargetObject->m_PetID, "");
 	}
 
@@ -195,7 +204,7 @@ BOOL CPetModule::OnMsgUnsetPetReq(NetPacket* pNetPacket)
 		pCurObject->Lock();
 		pCurObject->m_IsUsing = false;
 		pCurObject->Unlock();
-		m_setChange.insert(pCurObject->m_uGuid);
+		AddChangeID(pCurObject->m_uGuid);
 	}
 
 	UnsetPetAck Ack;
@@ -210,7 +219,7 @@ UINT64 CPetModule::AddPet(UINT32 dwPetID)
 	PetDataObject* pObject = DataPool::CreateObject<PetDataObject>(ESD_PET, TRUE);
 	pObject->Lock();
 	pObject->m_PetID = dwPetID;
-	pObject->m_uRoleID = m_pOwnPlayer->GetObjectID();
+	pObject->m_uRoleID = m_pOwnPlayer->GetRoleID();
 	pObject->m_uGuid   = CGlobalDataManager::GetInstancePtr()->MakeNewGuid();
 	pObject->m_StrengthLvl = 1;
 	pObject->m_RefineExp = 0;
@@ -219,7 +228,7 @@ UINT64 CPetModule::AddPet(UINT32 dwPetID)
 	pObject->m_RefineLevel = 1;
 	pObject->Unlock();
 	m_mapPetData.insert(std::make_pair(pObject->m_uGuid, pObject));
-	m_setChange.insert(pObject->m_uGuid);
+	AddChangeID(pObject->m_uGuid);
 	return pObject->m_uGuid;
 }
 

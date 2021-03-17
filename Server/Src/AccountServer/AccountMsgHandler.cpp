@@ -5,6 +5,7 @@
 #include "../Message/Msg_ID.pb.h"
 #include "../Message/Msg_RetCode.pb.h"
 #include "../Message/Msg_Game.pb.h"
+#include "GameLogManager.h"
 
 
 CAccountMsgHandler::CAccountMsgHandler()
@@ -26,6 +27,8 @@ BOOL CAccountMsgHandler::Init(UINT32 dwReserved)
 
 BOOL CAccountMsgHandler::Uninit()
 {
+	m_AccountManager.Uninit();
+
 	return TRUE;
 }
 
@@ -56,15 +59,26 @@ BOOL CAccountMsgHandler::OnMsgAccountRegReq(NetPacket* pPacket)
 
 	AccountRegAck Ack;
 
-	CAccountObject* pAccount = m_AccountManager.GetAccountObject(Req.accountname(), Req.channel());
-	if(pAccount != NULL)
+	std::string strAccountName = Req.accountname();
+
+	if(!m_AccountManager.CheckAccountName(strAccountName, false))
 	{
-		Ack.set_retcode(MRC_ACCOUNT_EXIST);
+		Ack.set_retcode(MRC_ACCOUNT_NAME_FMT_ERR);
 		ServiceBase::GetInstancePtr()->SendMsgProtoBuf(pPacket->m_dwConnID, MSG_ACCOUNT_REG_ACK, 0, pHeader->dwUserData, Ack);
 		return TRUE;
 	}
 
-	pAccount = m_AccountManager.CreateAccountObject(Req.accountname(), Req.password(), Req.channel());
+	CommonConvert::StringTrim(strAccountName);
+
+	CAccountObject* pAccount = m_AccountManager.GetAccountObject(strAccountName, Req.channel());
+	if(pAccount != NULL)
+	{
+		Ack.set_retcode(MRC_ACCOUNT_NAME_EXIST);
+		ServiceBase::GetInstancePtr()->SendMsgProtoBuf(pPacket->m_dwConnID, MSG_ACCOUNT_REG_ACK, 0, pHeader->dwUserData, Ack);
+		return TRUE;
+	}
+
+	pAccount = m_AccountManager.CreateAccountObject(strAccountName, Req.password(), Req.channel());
 	if(pAccount == NULL)
 	{
 		Ack.set_retcode(MRC_UNKNOW_ERROR);
@@ -74,6 +88,7 @@ BOOL CAccountMsgHandler::OnMsgAccountRegReq(NetPacket* pPacket)
 	{
 		Ack.set_retcode(MRC_SUCCESSED);
 		Ack.set_accountid(pAccount->m_ID);
+		CGameLogManager::GetInstancePtr()->LogAccountCreate(pAccount->m_ID, pAccount->m_strName, Req.reglog());
 	}
 
 	ServiceBase::GetInstancePtr()->SendMsgProtoBuf(pPacket->m_dwConnID, MSG_ACCOUNT_REG_ACK, 0, pHeader->dwUserData, Ack);
@@ -90,7 +105,20 @@ BOOL CAccountMsgHandler::OnMsgAccontLoginReq(NetPacket* pPacket)
 	ERROR_RETURN_TRUE(pHeader->dwUserData != 0);
 
 	AccountLoginAck Ack;
-	CAccountObject* pAccObj = m_AccountManager.GetAccountObject(Req.accountname(), Req.channel());
+	Ack.set_review(Req.review());
+
+	std::string strAccountName = Req.accountname();
+
+	if (!m_AccountManager.CheckAccountName(strAccountName, Req.fromchannel()))
+	{
+		Ack.set_retcode(MRC_ACCOUNT_NAME_FMT_ERR);
+		ServiceBase::GetInstancePtr()->SendMsgProtoBuf(pPacket->m_dwConnID, MSG_ACCOUNT_LOGIN_ACK, 0, pHeader->dwUserData, Ack);
+		return TRUE;
+	}
+
+	CommonConvert::StringTrim(strAccountName);
+
+	CAccountObject* pAccObj = m_AccountManager.GetAccountObject(strAccountName, Req.channel());
 	if(pAccObj != NULL)
 	{
 		ERROR_RETURN_FALSE(pAccObj->m_ID != 0);
@@ -100,41 +128,46 @@ BOOL CAccountMsgHandler::OnMsgAccontLoginReq(NetPacket* pPacket)
 			Ack.set_lastsvrid(0);
 			Ack.set_accountid(0);
 		}
-		else if(Req.password() == pAccObj->m_strPassword)
+		else if(Req.password() != pAccObj->m_strPassword)
+		{
+			Ack.set_retcode(MRC_ACCOUNT_WRONG_PASSWORD);
+			Ack.set_lastsvrid(0);
+			Ack.set_accountid(0);
+		}
+		else
 		{
 			Ack.set_retcode(MRC_SUCCESSED);
-			Ack.set_lastsvrid(pAccObj->m_dwLastSvrID);
+			Ack.set_lastsvrid(pAccObj->m_dwLastSvrID[0]);
 			Ack.set_accountid(pAccObj->m_ID);
+			CGameLogManager::GetInstancePtr()->LogAccountLogin(pAccObj->m_ID, pAccObj->m_strName, Req.loginlog());
 		}
 
 		ServiceBase::GetInstancePtr()->SendMsgProtoBuf(pPacket->m_dwConnID, MSG_ACCOUNT_LOGIN_ACK, 0, pHeader->dwUserData, Ack);
 		return TRUE;
 	}
 
-	//如果没有这个账号，就要判断是从哪里来到登录请求
-	if (Req.fromchannel() == 1)
+	if (!Req.fromchannel())
 	{
-		UINT64 u64ID = 0;
-		UINT32 dwChannel = 0;
-		std::string strPwd;
-		pAccObj = m_AccountManager.CreateAccountObject(Req.accountname(), Req.password(), Req.channel());
-		if (pAccObj == NULL)
-		{
-			Ack.set_retcode(MRC_UNKNOW_ERROR);
-			CLog::GetInstancePtr()->LogError("Error CAccountMsgHandler::OnMsgAccontLoginReq RetCode:MRC_FAILED");
-		}
-		else
-		{
-			Ack.set_retcode(MRC_SUCCESSED);
-			Ack.set_accountid(pAccObj->m_ID);
-			Ack.set_lastsvrid(0);
-		}
+		Ack.set_retcode(MRC_ACCOUNT_NAME_NOT_EXIST);
+		Ack.set_lastsvrid(0);
+		Ack.set_accountid(0);
+		ServiceBase::GetInstancePtr()->SendMsgProtoBuf(pPacket->m_dwConnID, MSG_ACCOUNT_LOGIN_ACK, 0, pHeader->dwUserData, Ack);
+		return TRUE;
+	}
+
+	pAccObj = m_AccountManager.CreateAccountObject(strAccountName, Req.password(), Req.channel());
+	if (pAccObj == NULL)
+	{
+		Ack.set_retcode(MRC_UNKNOW_ERROR);
+		CLog::GetInstancePtr()->LogError("Error CAccountMsgHandler::OnMsgAccontLoginReq RetCode:MRC_FAILED");
 	}
 	else
 	{
-		Ack.set_retcode(MRC_INVALID_ACCNAME);
+		Ack.set_retcode(MRC_SUCCESSED);
+		Ack.set_accountid(pAccObj->m_ID);
 		Ack.set_lastsvrid(0);
-		Ack.set_accountid(0);
+		CGameLogManager::GetInstancePtr()->LogAccountCreate(pAccObj->m_ID, pAccObj->m_strName, Req.loginlog());
+		CGameLogManager::GetInstancePtr()->LogAccountLogin(pAccObj->m_ID, pAccObj->m_strName, Req.loginlog());
 	}
 
 	ServiceBase::GetInstancePtr()->SendMsgProtoBuf(pPacket->m_dwConnID, MSG_ACCOUNT_LOGIN_ACK, 0, pHeader->dwUserData, Ack);
@@ -151,10 +184,17 @@ BOOL CAccountMsgHandler::OnMsgSealAccountReq(NetPacket* pPacket)
 	ERROR_RETURN_TRUE(pHeader->dwUserData != 0);
 
 	SealAccountAck Ack;
-
-	if (m_AccountManager.SealAccount(Req.accountid(), Req.accountname(), Req.channel(), Req.seal(), Req.sealtime()))
+	UINT64 uAccountID = Req.accountid();
+	UINT32 dwLastSvrID = 0;
+	if (m_AccountManager.SealAccount(uAccountID, Req.accountname(), Req.channel(), Req.seal(), Req.sealtime(), dwLastSvrID))
 	{
 		Ack.set_retcode(MRC_SUCCESSED);
+
+		if (Req.seal())
+		{
+			Ack.set_accountid(uAccountID);
+			Ack.set_serverid(dwLastSvrID);
+		}
 	}
 	else
 	{

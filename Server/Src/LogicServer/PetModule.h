@@ -1,7 +1,7 @@
 ﻿#ifndef __PET_MODULE_H__
 #define __PET_MODULE_H__
 #include "ModuleBase.h"
-#include "../ServerData/PetData.h"
+#include "PetData.h"
 
 struct PetDataObject;
 class CPetModule  : public CModuleBase
@@ -48,9 +48,6 @@ public:
 
 public:
 	std::map<UINT64, PetDataObject*>m_mapPetData;
-
-	std::set<UINT64> m_setChange;
-	std::set<UINT64> m_setRemove;
 };
 
 #endif //__PET_MODULE_H__

@@ -4,15 +4,34 @@
 CDBWriterManager::CDBWriterManager()
 {
 	m_Stop = FALSE;
+	m_nCurErrorCount = 0;
+	m_dwSaveTime = 30;
 }
 
 CDBWriterManager::~CDBWriterManager()
 {
-
+	m_Stop = FALSE;
+	m_nCurErrorCount = 0;
+	m_dwSaveTime = 30;
 }
 
 BOOL CDBWriterManager::Init()
 {
+	m_dwSharePageSize = CConfigFile::GetInstancePtr()->GetIntValue("share_page_size");
+	if (m_dwSharePageSize <= 1)
+	{
+		m_dwSharePageSize = 1024;
+	}
+	
+	m_dwSaveTime = CConfigFile::GetInstancePtr()->GetIntValue("db_save_time");
+	if (m_dwSaveTime <= 0)
+	{
+		m_dwSaveTime = 30;
+	}
+
+	UINT32 nAreaID = CConfigFile::GetInstancePtr()->GetIntValue("areaid");
+	ERROR_RETURN_FALSE(nAreaID > 0);
+
 	m_vtDataWriters.assign(ESD_END, NULL);
 	m_vtDataWriters[ESD_ROLE]           = new DataWriter<RoleDataObject>(ESD_ROLE, 1024);
 	m_vtDataWriters[ESD_GLOBAL]         = new DataWriter<GlobalDataObject>(ESD_GLOBAL, 1024);
@@ -28,24 +47,30 @@ BOOL CDBWriterManager::Init()
 	m_vtDataWriters[ESD_TASK]           = new DataWriter<TaskDataObject>(ESD_TASK, 1024);
 	m_vtDataWriters[ESD_MOUNT]          = new DataWriter<MountDataObject>(ESD_MOUNT, 1024);
 	m_vtDataWriters[ESD_MAIL]           = new DataWriter<MailDataObject>(ESD_MAIL, 1024);
-	m_vtDataWriters[ESD_OFFMAIL]        = new DataWriter<OffMailDataObject>(ESD_OFFMAIL, 1024);
+	m_vtDataWriters[ESD_OFFDATA]        = new DataWriter<OffDataObject>(ESD_OFFDATA, 1024);
 	m_vtDataWriters[ESD_GROUP_MAIL]     = new DataWriter<GroupMailDataObject>(ESD_GROUP_MAIL, 1024);
 	m_vtDataWriters[ESD_ACTIVITY]       = new DataWriter<ActivityDataObject>(ESD_ACTIVITY, 1024);
 	m_vtDataWriters[ESD_COUNTER]        = new DataWriter<CounterDataObject>(ESD_COUNTER, 1024);
 	m_vtDataWriters[ESD_FRIEND]         = new DataWriter<FriendDataObject>(ESD_FRIEND, 1024);
 	m_vtDataWriters[ESD_SKILL]          = new DataWriter<SkillDataObject>(ESD_SKILL, 1024);
+	m_vtDataWriters[ESD_PAYMENT]        = new DataWriter<PayDataObject>(ESD_PAYMENT, 1024);
+	m_vtDataWriters[ESD_SEAL_ROLE]      = new DataWriter<SealDataObject>(ESD_SEAL_ROLE, 1024);
 
-
-	for (int i = ESD_ROLE; i < ESD_END; i++)
+	for (int i = ESD_BEGIN + 1; i < ESD_END; i++)
 	{
-		ERROR_RETURN_FALSE(m_vtDataWriters[i] != NULL);
+		if (m_vtDataWriters[i] == NULL)
+		{
+			CLog::GetInstancePtr()->LogError("CDBWriterManager::Init Error: ModuleID:[%d] Is NULL!", i);
+			return FALSE;
+		}
 	}
+
 	std::string strHost = CConfigFile::GetInstancePtr()->GetStringValue("mysql_game_svr_ip");
 	UINT32 nPort = CConfigFile::GetInstancePtr()->GetIntValue("mysql_game_svr_port");
 	std::string strUser = CConfigFile::GetInstancePtr()->GetStringValue("mysql_game_svr_user");
 	std::string strPwd = CConfigFile::GetInstancePtr()->GetStringValue("mysql_game_svr_pwd");
 	std::string strDb = CConfigFile::GetInstancePtr()->GetStringValue("mysql_game_svr_db_name");
-
+	
 	m_DBConnection.SetConnectParam(strHost.c_str(), strUser.c_str(), strPwd.c_str(), strDb.c_str(), nPort);
 
 	m_pWorkThread = new std::thread(&CDBWriterManager::DBWriteThread, this);
@@ -57,29 +82,63 @@ BOOL CDBWriterManager::Uninit()
 {
 	m_Stop = TRUE;
 
-	m_pWorkThread->join();
+	if (m_pWorkThread != NULL)
+	{
+		m_pWorkThread->join();
 
-	delete m_pWorkThread;
+		delete m_pWorkThread;
+
+		m_pWorkThread = NULL;
+	}
+
 
 	return TRUE;
 }
 
 BOOL CDBWriterManager::WriteDataToDB()
 {
-	for (int i = ESD_ROLE; i < ESD_END; i++)
+	BOOL bHasWrite = FALSE;
+	UINT32 nErrorCount = 0;
+	for (int i = ESD_BEGIN + 1; i < ESD_END; i++)
 	{
-		if (m_vtDataWriters[i] != NULL)
+		ERROR_TO_CONTINUE(m_vtDataWriters[i] != NULL);
+
+		if (m_vtDataWriters[i]->SaveModifyToDB(&m_DBConnection))
 		{
-			m_vtDataWriters[i]->SaveModifyToDB(&m_DBConnection);
+			bHasWrite = TRUE;
 		}
+
+		nErrorCount += m_vtDataWriters[i]->GetErrorCount();
 	}
 
-	return TRUE;
+	m_nCurErrorCount = nErrorCount;
+
+	return bHasWrite;
 }
 
 BOOL CDBWriterManager::IsStop()
 {
 	return m_Stop;
+}
+
+BOOL CDBWriterManager::Update()
+{
+	static UINT32 nLastErrorCount = 0;
+
+	if (nLastErrorCount == m_nCurErrorCount)
+	{
+		return TRUE;
+	}
+
+	nLastErrorCount = m_nCurErrorCount;
+
+	//Msg_DbErrorCountNty Nty;
+
+	//Nty.set_errorcount(m_nCurErrorCount);
+
+	//ServiceBase::GetInstancePtr()->SendMsgProtoBuf(CGameService::GetInstancePtr()->GetLogicConnID(), MSG_DB_WRITE_ERROR_NTY, 0, 0, Nty);
+
+	return TRUE;
 }
 
 void CDBWriterManager::DBWriteThread()
@@ -89,24 +148,27 @@ void CDBWriterManager::DBWriteThread()
 		return ;
 	}
 
-	if (!m_DBConnection.Reconnect())
-	{
-		return ;
-	}
-
-	while (!IsStop())
+	while (TRUE)
 	{
 		if (!m_DBConnection.Ping())
 		{
-			m_DBConnection.Reconnect();
+			if (!m_DBConnection.Reconnect())
+			{
+				CommonFunc::Sleep(1000);
+				continue;
+			}
 		}
 
-		WriteDataToDB();
+		BOOL bHasWrite = WriteDataToDB();
+		if (!bHasWrite && IsStop())
+		{
+			break;
+		}
 
 		CommonFunc::Sleep(60000); //休息10秒
 	}
 
-	Uninit();
+	m_DBConnection.Uninit();
 
 	return ;
 }

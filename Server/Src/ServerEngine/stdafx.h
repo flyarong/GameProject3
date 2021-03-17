@@ -6,7 +6,6 @@
 #ifndef __STDAFX_H__
 #define __STDAFX_H__
 
-#include <stdio.h>
 #include <map>
 #include <vector>
 #include <string>
@@ -17,6 +16,8 @@
 #include <deque>
 #include <mutex>
 #include <thread>
+//#include <locale>
+//#include <codecvt>
 #include "Platform.h"
 #include "Log.h"
 #include "CommonFunc.h"

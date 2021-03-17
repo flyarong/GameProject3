@@ -3,6 +3,7 @@
 #include "google\protobuf\message.h"
 #include "..\Src\ServerEngine\CommonSocket.h"
 #include "..\Src\ServerEngine\PacketHeader.h"
+#include "..\Src\ServerEngine\CommonFunc.h"
 
 CClientConnector::CClientConnector(void)
 {
@@ -63,7 +64,7 @@ BOOL CClientConnector::SendData( char* pData, INT32 dwLen )
 	{
 		DWORD nError = CommonSocket::GetSocketLastError();
 
-		printf("发送数据发生错误:%s!\n", CommonSocket::GetLastErrorStr(nError).c_str());
+		printf("发送数据发生错误:%s!\n", CommonFunc::GetLastErrorStr(nError).c_str());
 
 		return FALSE;
 	}
@@ -185,7 +186,9 @@ BOOL CClientConnector::ConnectTo( std::string strIpAddr, UINT16 sPort )
 		return FALSE;
 	}
 
-	CommonSocket::SetSocketUnblock(m_hSocket);
+	CommonSocket::SetSocketBlock(m_hSocket, FALSE);
+
+	CommonSocket::SetSocketBuffSize(m_hSocket, 1024 * 1024, 1024 * 1024);
 
 	SetConnectState(ECS_CONNECTED);
 
@@ -236,7 +239,7 @@ BOOL CClientConnector::ReceiveData()
 		DWORD nError = CommonSocket::GetSocketLastError();
 		if(nError != WSAEWOULDBLOCK)
 		{
-			printf("接收数据发生错误:%s!\n", CommonSocket::GetLastErrorStr(nError).c_str());
+			printf("接收数据发生错误:%s!\n", CommonFunc::GetLastErrorStr(nError).c_str());
 
 			SetConnectState(ECS_NO_CONNECT);
 

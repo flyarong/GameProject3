@@ -22,29 +22,34 @@ public:
 
 	BOOL		Run();
 
-	BOOL		OnNewConnect(CConnection* pConn);
+	BOOL		OnNewConnect(UINT32 nConnID);
 
-	BOOL		OnCloseConnect(CConnection* pConn);
+	BOOL		OnCloseConnect(UINT32 nConnID);
 
 	BOOL		OnSecondTimer();
 
 	BOOL		DispatchPacket( NetPacket* pNetPacket);
 
-	BOOL		ConnectToWatchServer();
+	BOOL        SetLogicConnID(UINT32 dwConnID);
 
-	BOOL		SendWatchHeartBeat();
+	UINT32      GetLogicConnID();
 
-	BOOL		SetWatchIndex(UINT32 nIndex);
+	BOOL        SetLogicProcessID(UINT32 dwProcesssID);
+
+	UINT32      GetLogicProcessID();
+
+	BOOL        CheckLogicServer();
+
 public:
 	CDBMsgHandler		m_DBMsgHandler;
 
 	CDBWriterManager    m_DBWriterManger;
 
-	UINT32				m_dwWatchSvrConnID;
-	UINT32				m_dwWatchIndex;
+	UINT32              m_dwLogicConnID;
+
+	UINT32              m_dwLogicProcessID;
 public:
 	//*********************消息处理定义开始******************************
-	BOOL OnMsgWatchHeartBeatAck(NetPacket* pNetPacket);
 	//*********************消息处理定义结束******************************
 };
 

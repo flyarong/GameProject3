@@ -3,11 +3,15 @@ CC_INCLUDE=-I/usr/include
 	 
 MY_INCLUDE=-I$(PWD) \
 		-I../ServerEngine \
-		-I../../Common 
+		-I../WatcherClient \
+		-I../../Common \
+		-I../../Common/Mysql 
 					 
 CC_LIB=-L/usr/lib \
 	-L/lib \
-	-lpthread -lprotobuf
+	-L/usr/lib64/mysql \
+	-L/usr/lib/mysql \
+	-lpthread -lprotobuf -lmysqlclient
 			 
 MY_LIB=-L../Debug \
 	-L../Linux \
@@ -17,7 +21,7 @@ MY_LIB=-L../Debug \
 TARGET=CenterServer
 
 SRCS=$(wildcard *.cpp)
-#SRCS:=$(SRCS) $(wildcard ../Message/*.cc)
+SRCS:=$(SRCS) $(wildcard ../WatcherClient/*.cpp)
 SRCS2=$(wildcard ../Message/*.cc)
 
 OBJS=$(SRCS:.cpp=.o)

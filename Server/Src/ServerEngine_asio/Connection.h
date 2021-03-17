@@ -4,8 +4,9 @@
 #include "IBufferHandler.h"
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/udp.hpp>
 #include <boost/bind.hpp>
-#include "../ServerEngine/LockFreeQueue.h"
+#include "ReaderWriterQueue.h"
 
 #define RECV_BUF_SIZE               8192
 
@@ -54,24 +55,28 @@ public:
 	void	HandWritedata(const boost::system::error_code& error, size_t len);
 
 	BOOL	CheckHeader(CHAR* m_pPacket);
+
+	UINT32  GetIpAddr(BOOL bHost = TRUE);
+
+	VOID    EnableCheck(BOOL bCheck);
 public:
 	boost::asio::ip::tcp::socket m_hSocket;
 
 	BOOL						m_bConnected;
 
+
+	BOOL                        m_bPacketNoCheck;
 	UINT32                      m_dwConnID;
 	UINT64                      m_u64ConnData;
 
 	IDataHandler*				m_pDataHandler;
-
-	UINT32						m_dwIpAddr;
 
 	UINT32						m_dwDataLen;
 	CHAR						m_pRecvBuf[RECV_BUF_SIZE];
 	CHAR*						m_pBufPos;
 
 	IDataBuffer*				m_pCurRecvBuffer;
-	UINT32						m_pCurBufferSize;
+	UINT32						m_nCurBufferSize;
 	UINT32						m_nCheckNo;
 
 	volatile BOOL				m_IsSending;
@@ -80,7 +85,7 @@ public:
 
 	UINT64						m_LastRecvTick;
 
-	ArrayLockFreeQueue < IDataBuffer* > m_SendBuffList;
+	moodycamel::ReaderWriterQueue< IDataBuffer*> m_SendBuffList;
 
 	IDataBuffer*				m_pSendingBuffer;
 };
@@ -103,14 +108,16 @@ public:
 
 	BOOL		    DeleteConnection(CConnection* pConnection);
 
-	CConnection*    GetConnectionByConnID(UINT32 dwConnID);
+	BOOL            DeleteConnection(UINT32 nConnID);
+
+	CConnection*    GetConnectionByID(UINT32 dwConnID);
 
 	///////////////////////////////////////////
 	BOOL		    CloseAllConnection();
 
 	BOOL		    DestroyAllConnection();
 
-	BOOL			CheckConntionAvalible();
+	BOOL			CheckConntionAvalible(INT32 nInterval);
 
 public:
 

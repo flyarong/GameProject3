@@ -66,7 +66,7 @@ INT32 CLuaHelper::GetGlobalVarInt( const char* pszVarName )
 
 BOOL CLuaHelper::GetGlobalVarBoolean( const char* pszVarName )
 {
-	ASSERT(m_pLuaState != NULL);
+	ERROR_RETURN_FALSE(m_pLuaState != NULL);
 
 	lua_getglobal(m_pLuaState, pszVarName);
 
@@ -82,7 +82,7 @@ BOOL CLuaHelper::GetGlobalVarBoolean( const char* pszVarName )
 
 const CHAR* CLuaHelper::GetGlobalVarString( const char* pszVarName )
 {
-	ASSERT(m_pLuaState != NULL);
+	ERROR_RETURN_NULL(m_pLuaState != NULL);
 
 	lua_getglobal(m_pLuaState, pszVarName);
 
@@ -98,7 +98,7 @@ const CHAR* CLuaHelper::GetGlobalVarString( const char* pszVarName )
 
 DOUBLE CLuaHelper::GetGlobalVarDouble( const char* pszVarName )
 {
-	ASSERT(m_pLuaState != NULL);
+	ERROR_RETURN_NULL(m_pLuaState != NULL);
 
 	lua_getglobal(m_pLuaState, pszVarName);
 
@@ -194,6 +194,188 @@ BOOL CLuaHelper::CallLuaFunction( std::string strFuncName, char* pStrParamSig, .
 		switch(cParmSig)
 		{
 			case 'd':
+			{
+				lua_pushnumber(m_pLuaState, va_arg(VarList, double));
+				nInParamCount++;
+			}
+			break;
+			case 'f':
+			{
+				lua_pushnumber(m_pLuaState, va_arg(VarList, float));
+				nInParamCount++;
+			}
+			break;
+			case 'i':
+			{
+				lua_pushinteger(m_pLuaState, va_arg(VarList, int));
+				nInParamCount++;
+			}
+			break;
+			case 'l':
+			{
+				lua_pushinteger(m_pLuaState, va_arg(VarList, long long));
+				nInParamCount++;
+			}
+			break;
+			case 's':
+			{
+				lua_pushstring(m_pLuaState, va_arg(VarList, char*));
+				nInParamCount++;
+			}
+			break;
+			case 'p':
+			{
+				lua_pushlightuserdata(m_pLuaState, va_arg(VarList, void*));
+				nInParamCount++;
+			}
+			break;
+			case 'b':
+			{
+				lua_pushboolean(m_pLuaState, va_arg(VarList, bool));
+				nInParamCount++;
+			}
+			break;
+			case 'x':
+			{
+				CHAR* pData = va_arg(VarList, char*);
+				int nLen = va_arg(VarList, int);
+				lua_pushlstring(m_pLuaState, pData, nLen);
+				nInParamCount++;
+			}
+			break;
+			case '=':
+			{
+				bInParamEnd = TRUE;
+			}
+			break;
+			default:
+			{
+
+			}
+			break;
+		}
+
+		pInParam++;
+	}
+
+	if(lua_pcall(m_pLuaState, nInParamCount, nOutParamCount, 0) != 0)
+	{
+		const char* sresult = lua_tostring(m_pLuaState, -1);
+		va_end(VarList);
+		lua_settop(m_pLuaState, nStackTop);
+		return FALSE;
+	}
+
+	INT32 nRetIndex = -nOutParamCount;
+	BOOL bOutParamEnd = FALSE;
+	while(!bOutParamEnd)
+	{
+		char cParmSig = *pOutParam;
+		switch(cParmSig)
+		{
+			case 'd':
+			{
+				ERROR_RETURN_FALSE(lua_isnumber(m_pLuaState, nRetIndex));
+				*va_arg(VarList, double*) = lua_tonumber(m_pLuaState, nRetIndex);
+			}
+			break;
+			case 'f':
+			{
+				ERROR_RETURN_FALSE(lua_isnumber(m_pLuaState, nRetIndex));
+				*va_arg(VarList, float*) = (float)lua_tonumber(m_pLuaState, nRetIndex);
+			}
+			break;
+			case 'i':
+			{
+				ERROR_RETURN_FALSE(lua_isinteger(m_pLuaState, nRetIndex));
+				*va_arg(VarList, int*) = (int)lua_tointeger(m_pLuaState, nRetIndex);
+			}
+			break;
+			case 'l':
+			{
+				ERROR_RETURN_FALSE(lua_isinteger(m_pLuaState, nRetIndex));
+				*va_arg(VarList, long long*) = (long long)lua_tointeger(m_pLuaState, nRetIndex);
+			}
+			break;
+			case 's':
+			{
+				ERROR_RETURN_FALSE(lua_isstring(m_pLuaState, nRetIndex));
+				*va_arg(VarList, const char**) = lua_tostring(m_pLuaState, nRetIndex);
+			}
+			break;
+			case 'p':
+			{
+				ERROR_RETURN_FALSE(lua_isuserdata(m_pLuaState, nRetIndex));
+				*va_arg(VarList, void**) = lua_touserdata(m_pLuaState, nRetIndex);
+			}
+			break;
+			case 'b':
+			{
+				ERROR_RETURN_FALSE(lua_isboolean(m_pLuaState, nRetIndex));
+				*va_arg(VarList, bool*) = lua_toboolean(m_pLuaState, nRetIndex);
+			}
+			break;
+			case 0:
+				bOutParamEnd = TRUE;
+				break;
+			default:
+			{
+
+			}
+			break;
+		}
+
+		nRetIndex++;
+		pOutParam++;
+	}
+
+	va_end(VarList);
+	lua_settop(m_pLuaState, nStackTop);
+
+	return TRUE;
+}
+
+
+BOOL CLuaHelper::CallLuaTableFunc(std::string strTableName, std::string strFuncName, char* pStrParamSig, ...)
+{
+	ERROR_RETURN_FALSE(pStrParamSig != NULL);
+	char* pInParam = pStrParamSig;
+	char* pOutParam = strchr(pStrParamSig, '=');
+	ERROR_RETURN_FALSE(pOutParam != NULL);
+
+	int nStackTop = lua_gettop(m_pLuaState);
+	pOutParam += 1;
+
+	va_list VarList;
+	va_start(VarList, pStrParamSig);
+
+	lua_getglobal(m_pLuaState, strTableName.c_str());
+	if (!lua_istable(m_pLuaState, -1))
+	{
+		va_end(VarList);
+		lua_settop(m_pLuaState, nStackTop);
+		return FALSE;
+	}
+
+	lua_getfield(m_pLuaState, -1, strFuncName.c_str());
+	if (!lua_isfunction(m_pLuaState, -1))
+	{
+		va_end(VarList);
+		lua_settop(m_pLuaState, nStackTop);
+		return FALSE;
+	}
+
+	BOOL	bInParamEnd = FALSE;
+	int		nInParamCount = 0;
+	int		nOutParamCount = (int)strlen(pOutParam);
+
+	while (!bInParamEnd)
+	{
+		luaL_checkstack(m_pLuaState, 1, "too many arguments");
+		char cParmSig = *pInParam;
+		switch (cParmSig)
+		{
+			case 'd':
 				lua_pushnumber(m_pLuaState, va_arg(VarList, double));
 				nInParamCount++;
 				break;
@@ -234,7 +416,7 @@ BOOL CLuaHelper::CallLuaFunction( std::string strFuncName, char* pStrParamSig, .
 		pInParam++;
 	}
 
-	if(lua_pcall(m_pLuaState, nInParamCount, nOutParamCount, 0) != 0)
+	if (lua_pcall(m_pLuaState, nInParamCount, nOutParamCount, 0) != 0)
 	{
 		const char* sresult = lua_tostring(m_pLuaState, -1);
 		va_end(VarList);
@@ -244,37 +426,37 @@ BOOL CLuaHelper::CallLuaFunction( std::string strFuncName, char* pStrParamSig, .
 
 	INT32 nRetIndex = -nOutParamCount;
 	BOOL bOutParamEnd = FALSE;
-	while(!bOutParamEnd)
+	while (!bOutParamEnd)
 	{
 		char cParmSig = *pOutParam;
-		switch(cParmSig)
+		switch (cParmSig)
 		{
 			case 'd':
-				ASSERT(lua_isnumber(m_pLuaState, nRetIndex));
+				ERROR_RETURN_FALSE(lua_isnumber(m_pLuaState, nRetIndex));
 				*va_arg(VarList, double*) = lua_tonumber(m_pLuaState, nRetIndex);
 				break;
 			case 'f':
-				ASSERT(lua_isnumber(m_pLuaState, nRetIndex));
+				ERROR_RETURN_FALSE(lua_isnumber(m_pLuaState, nRetIndex));
 				*va_arg(VarList, float*) = (float)lua_tonumber(m_pLuaState, nRetIndex);
 				break;
 			case 'i':
-				ASSERT(lua_isinteger(m_pLuaState, nRetIndex));
+				ERROR_RETURN_FALSE(lua_isinteger(m_pLuaState, nRetIndex));
 				*va_arg(VarList, int*) = (int)lua_tointeger(m_pLuaState, nRetIndex);
 				break;
 			case 'l':
-				ASSERT(lua_isinteger(m_pLuaState, nRetIndex));
+				ERROR_RETURN_FALSE(lua_isinteger(m_pLuaState, nRetIndex));
 				*va_arg(VarList, long long*) = (long long)lua_tointeger(m_pLuaState, nRetIndex);
 				break;
 			case 's':
-				ASSERT(lua_isstring(m_pLuaState, nRetIndex));
+				ERROR_RETURN_FALSE(lua_isstring(m_pLuaState, nRetIndex));
 				*va_arg(VarList, const char**) = lua_tostring(m_pLuaState, nRetIndex);
 				break;
 			case 'p':
-				ASSERT(lua_isuserdata(m_pLuaState, nRetIndex));
+				ERROR_RETURN_FALSE(lua_isuserdata(m_pLuaState, nRetIndex));
 				*va_arg(VarList, void**) = lua_touserdata(m_pLuaState, nRetIndex);
 				break;
 			case 'b':
-				ASSERT(lua_isboolean(m_pLuaState, nRetIndex));
+				ERROR_RETURN_FALSE(lua_isboolean(m_pLuaState, nRetIndex));
 				*va_arg(VarList, bool*) = lua_toboolean(m_pLuaState, nRetIndex);
 				break;
 			case 0:
@@ -325,6 +507,20 @@ BOOL CLuaHelper::LoadScriptFile( std::vector<std::string>& vtScriptList )
 	return TRUE;
 }
 
+BOOL CLuaHelper::DoLuaScript(std::string strLuaScript)
+{
+	if (m_pLuaState == NULL)
+	{
+		return FALSE;
+	}
+
+	if (luaL_dostring(m_pLuaState, strLuaScript.c_str()))
+	{
+		return FALSE;
+	}
+
+	return TRUE;
+}
 
 BOOL CLuaHelper::GetStackParams( char* pStrParamSig, ... )
 {

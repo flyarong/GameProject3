@@ -20,7 +20,7 @@ BOOL ShareObject::IsLock() const
 
 void ShareObject::Unlock()
 {
-	m_UpdateTime = time(NULL);
+	m_UpdateTime = time(0);
 	m_Status = SMS_USE;
 }
 
@@ -72,7 +72,7 @@ BOOL ShareObject::IsUse() const
 void ShareObject::Reset()
 {
 	m_Status = SMS_NONE;
-	m_UpdateTime = time(NULL);
+	m_UpdateTime = time(0);
 }
 
 /******************************************************************
@@ -112,8 +112,7 @@ BOOL SharedMemoryBase::NewPage()
 //----------------------------------------------
 void SharedMemoryBase::InitPage(shareMemoryPage& rPage)
 {
-	UINT32 size = 0;
-	size = m_nCountperPage * m_rawblockSize;
+	UINT32 size = m_nCountperPage * m_rawblockSize;
 	char* pdata = rPage.m_pdata;
 	memset(pdata, 0, size);
 
@@ -252,6 +251,7 @@ SharedMemoryBase::SharedMemoryBase(const UINT32& nModuleID, UINT32 rawblockSize,
 			m_nPageCount++;
 			m_nCount += m_nCountperPage;
 			InitPage(firstpage);
+
 			m_ShareMemoryPageMapping.push_back(firstpage);
 		}
 

@@ -6,15 +6,15 @@
 #include "AVLTree.h"
 struct GameSvrInfo
 {
-	GameSvrInfo(UINT32 svrID, UINT32 conID)
+	GameSvrInfo(UINT32 dwSvrID, UINT32 dwConnID)
 	{
-		dwSvrID = svrID;
-		dwConnID = conID;
-		dwLoad   = 0;
+		m_dwSvrID = dwSvrID;
+		m_dwConnID = dwConnID;
+		m_dwLoad   = 0;
 	}
-	UINT32 dwSvrID;
-	UINT32 dwConnID;
-	UINT32 dwLoad;		//负载值
+	UINT32 m_dwSvrID;
+	UINT32 m_dwConnID;
+	UINT32 m_dwLoad;		//负载值
 };
 
 struct CityInfo
@@ -83,10 +83,14 @@ public:
 	BOOL		CreateScene(UINT32 dwCopyID, UINT64 CreateParam, UINT32 dwCopyType);
 
 	VOID        RegisterMessageHanler();
+
+	BOOL        BroadMsgToAll(UINT32 dwMsgID, CHAR* pData, UINT32 nSize);
 private:
 	UINT32		GetServerIDByCopyGuid(UINT32 dwCopyGuid);
 
 	UINT32		GetBestGameServerID();
+
+	GameSvrInfo* GetGameSvrInfo(UINT32 dwSvrID);
 
 	BOOL		SendCreateSceneCmd(UINT32 dwServerID, UINT32 dwCopyID, UINT32 dwCopyType, UINT64 CreateParam, UINT32 dwPlayerNum);
 
@@ -99,6 +103,7 @@ private:
 	BOOL        AddWaitItem(UINT64 uKey, UINT64 uID[], UINT32 dwCamp[], INT32 nNum);
 
 	BOOL		CreateScene(UINT32 dwCopyID, UINT64 CreateParam, UINT32 dwPlayerNum, UINT32 dwCopyType);
+
 public:
 
 	//响应副本结果返回
@@ -111,18 +116,17 @@ public:
 	BOOL	OnMsgGameSvrRegister(NetPacket* pNetPacket); //响应副本服务器注册
 	BOOL	OnMsgCreateSceneAck(NetPacket* pNetPacket);  //响应创建副本成功
 	BOOL	OnMsgTransRoleDataAck(NetPacket* pNetPacket);//响应角色数据传输成功
-	BOOL	OnMsgEnterSceneReq(NetPacket* pNetPacket);
 	BOOL	OnMsgCopyReportReq(NetPacket* pNetPacket);
 	BOOL	OnMsgBattleResultNty(NetPacket* pNetPacket);
 	//*********************消息处理定义结束******************************
 public:
-	std::map<UINT32, GameSvrInfo> m_mapGameSvr; //服务器ID-->副本服务器信息
+	std::map<UINT32, GameSvrInfo>   m_mapGameSvr; //服务器ID-->副本服务器信息
 
-	std::map<UINT32, CityInfo> m_mapCity;
+	std::map<UINT32, CityInfo>      m_mapCity;
 
-	std::map<UINT32, UINT32> m_GuidToSvrID;    //副本guid->副本服务器ID
+	std::map<UINT32, UINT32>        m_GuidToSvrID;    //副本guid->副本服务器ID
 
-	CWaitCopyList               m_WaitCopyList;
+	CWaitCopyList                   m_WaitCopyList;
 };
 
 #endif

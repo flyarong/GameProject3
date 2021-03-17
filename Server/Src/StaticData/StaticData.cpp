@@ -1,6 +1,8 @@
 ﻿#include "stdafx.h"
 #include "StaticData.h"
 #include "RapidXml.h"
+#include "ConfigFile.h"
+//#include "DBInterface/CppMysql.h"
 
 CStaticData::CStaticData()
 {
@@ -52,26 +54,50 @@ BOOL CStaticData::InitDataReader()
 
 BOOL CStaticData::LoadConfigData(std::string strDbFile)
 {
+#define  SQLITE_TYPE 1
+#ifdef SQLITE_TYPE
 	try
 	{
-		m_DBConnection.open(strDbFile.c_str());
+		CppSQLite3DB	tDBConnection;
+		tDBConnection.open(strDbFile.c_str());
 		char szSql[SQL_BUFF_LEN] = { 0 };
 		for (std::vector<DataFuncNode>::iterator itor = m_vtDataFuncList.begin(); itor != m_vtDataFuncList.end(); itor++)
 		{
 			DataFuncNode dataNode = (*itor);
 			snprintf(szSql, SQL_BUFF_LEN, "select * from %s;", dataNode.m_strTbName.c_str());
-			CppSQLite3Query Tabledatas = m_DBConnection.execQuery(szSql);
+			CppSQLite3Query Tabledatas = tDBConnection.execQuery(szSql);
 			(this->*dataNode.m_pDataFunc)(Tabledatas);
 		}
-		m_DBConnection.close();
+		tDBConnection.close();
 	}
 	catch(CppSQLite3Exception& e)
 	{
 		CLog::GetInstancePtr()->LogError("CConfigData::LoadConfigData Failed!!!, Reason:%s", e.errorMessage());
 		return FALSE;
 	}
+#else
+	std::string strHost = CConfigFile::GetInstancePtr()->GetStringValue("mysql_type_svr_ip");
+	INT32 nPort = CConfigFile::GetInstancePtr()->GetIntValue("mysql_type_svr_port");
+	std::string strUser = CConfigFile::GetInstancePtr()->GetStringValue("mysql_type_svr_user");
+	std::string strPwd = CConfigFile::GetInstancePtr()->GetStringValue("mysql_type_svr_pwd");
+	std::string strDb = CConfigFile::GetInstancePtr()->GetStringValue("mysql_type_svr_db_name");
 
-
+	CppMySQL3DB tDBConnection;
+	if (!tDBConnection.open(strHost.c_str(), strUser.c_str(), strPwd.c_str(), strDb.c_str(), nPort))
+	{
+		CLog::GetInstancePtr()->LogError("Error: Can not open mysql database! Reason:%s", tDBConnection.GetErrorMsg());
+		return FALSE;
+	}
+	char szSql[SQL_BUFF_LEN] = { 0 };
+	for (std::vector<DataFuncNode>::iterator itor = m_vtDataFuncList.begin(); itor != m_vtDataFuncList.end(); itor++)
+	{
+		DataFuncNode dataNode = (*itor);
+		snprintf(szSql, SQL_BUFF_LEN, "select * from %s;", dataNode.m_strTbName.c_str());
+		CppMySQLQuery Tabledatas = tDBConnection.querySQL(szSql);
+		(this->*dataNode.m_pDataFunc)(Tabledatas);
+	}
+	tDBConnection.close();
+#endif
 	ReadSkillEvent();
 
 	return TRUE;
@@ -81,29 +107,29 @@ BOOL CStaticData::ReloadConfigData( std::string strTbName )
 {
 	try
 	{
-		m_DBConnection.open("Config.db");
+		CppSQLite3DB	tDBConnection;
+		tDBConnection.open("Config.db");
+		char szSql[SQL_BUFF_LEN] = { 0 };
+		for (std::vector<DataFuncNode>::iterator itor = m_vtDataFuncList.begin(); itor != m_vtDataFuncList.end(); itor++)
+		{
+			DataFuncNode dataNode = (*itor);
+			if (dataNode.m_strTbName != strTbName)
+			{
+				continue;
+			}
+
+			snprintf(szSql, SQL_BUFF_LEN, "select * from %s;", dataNode.m_strTbName.c_str());
+			CppSQLite3Query Tabledatas = tDBConnection.execQuery(szSql);
+			(this->*dataNode.m_pDataFunc)(Tabledatas);
+		}
+
+		tDBConnection.close();
 	}
 	catch(CppSQLite3Exception& e)
 	{
 		CLog::GetInstancePtr()->LogError("CConfigData::ReloadConfigData Failed!!!, Reason:%s", e.errorMessage());
 		return FALSE;
 	}
-
-	char szSql[SQL_BUFF_LEN]  = {0};
-	for(std::vector<DataFuncNode>::iterator itor = m_vtDataFuncList.begin(); itor != m_vtDataFuncList.end(); itor++)
-	{
-		DataFuncNode dataNode = (*itor);
-		if(dataNode.m_strTbName != strTbName)
-		{
-			continue;
-		}
-
-		snprintf(szSql, SQL_BUFF_LEN, "select * from %s;", dataNode.m_strTbName.c_str());
-		CppSQLite3Query Tabledatas = m_DBConnection.execQuery(szSql);
-		(this->*dataNode.m_pDataFunc)(Tabledatas);
-	}
-
-	m_DBConnection.close();
 
 	return TRUE;
 }
@@ -425,26 +451,23 @@ BOOL CStaticData::ReadAwardData(CppSQLite3Query& QueryData)
 
 		if (strRatioDrop != "NULL")
 		{
-			UINT32 dwRatioBegin = 1;
-			UINT32 dwTempValue = 0;
 			std::vector<std::string> vtRet;
 			CommonConvert::SpliteString(strFixDrop, ")(", vtRet);
+
+			UINT32 nCheckRatio = 0;
 
 			StDropItem item;
 			for(std::vector<std::string>::size_type i = 0; i < vtRet.size(); i++)
 			{
 				ParseToDropItem(vtRet.at(i), item);
 				stValue.RatioItems.push_back(item);
-
-				dwTempValue = stValue.RatioItems[i].dwRatio;
-				stValue.RatioItems[i].dwRatio = dwRatioBegin;
-				dwRatioBegin += dwTempValue;
+				nCheckRatio += item.dwRatio;
 			}
 
-
-			stValue.RatioItems.push_back(item);
-			stValue.RatioItems[vtRet.size()].dwItemID = 0;
-			stValue.RatioItems[vtRet.size()].dwRatio = 10000;
+			if (nCheckRatio != 10000)
+			{
+				CLog::GetInstancePtr()->LogError("ReadAwardData Error: Invalid awardid :%d", stValue.dwAwardID);
+			}
 		}
 
 		if ((stValue.FixItems.size() <= 0) && (stValue.RatioItems.size() <= 0))
@@ -561,12 +584,13 @@ BOOL CStaticData::GetItemsFromAwardID(INT32 nAwardID, INT32 nCarrer, std::vector
 		}
 	}
 
+	//多次可取到同样的物品
 	for (int  cycle = 0; cycle < AwardItem.dwRatioCount; cycle++ )
 	{
 		UINT32 dwRandValue = CommonFunc::GetRandNum(0);
 		for (std::vector<StDropItem>::size_type i = 0; i < AwardItem.RatioItems.size() - 1; i++)
 		{
-			if ((dwRandValue >= AwardItem.RatioItems[i].dwRatio) && (dwRandValue < AwardItem.RatioItems[i + 1].dwRatio))
+			if (dwRandValue <= AwardItem.RatioItems[i].dwRatio)
 			{
 				tempItem.dwItemID = AwardItem.RatioItems[i].dwItemID;
 				if (AwardItem.RatioItems[i].dwItemNum[1] == AwardItem.RatioItems[i].dwItemNum[0])
@@ -583,8 +607,53 @@ BOOL CStaticData::GetItemsFromAwardID(INT32 nAwardID, INT32 nCarrer, std::vector
 					vtItemList.push_back(tempItem);
 				}
 			}
+			else
+			{
+				dwRandValue -= AwardItem.RatioItems[i].dwRatio;
+			}
 		}
 	}
+
+	//确保多次都取到不同样的物品
+	/*
+	bool UsedFlag[100] = { 0 };
+	UINT32 UsedValue = 0;
+	for (int cycle = 0; cycle < AwardItem.dwRatioCount; cycle++)
+	{
+		UINT32 dwRandValue = CommonFunc::GetRandNum(0) - UsedValue;
+		for (std::vector<StDropItem>::size_type i = 0; i < AwardItem.RatioItems.size() - 1; i++)
+		{
+			if (UsedFlag[i])
+			{
+				continue;
+			}
+
+			if (dwRandValue <= AwardItem.RatioItems[i].dwRatio)
+			{
+				tempItem.dwItemID = AwardItem.RatioItems[i].dwItemID;
+				if (AwardItem.RatioItems[i].dwItemNum[1] == AwardItem.RatioItems[i].dwItemNum[0])
+				{
+					tempItem.dwItemNum = AwardItem.RatioItems[i].dwItemNum[0];
+				}
+				else
+				{
+					tempItem.dwItemNum = AwardItem.RatioItems[i].dwItemNum[0] + CommonFunc::GetRandNum(0) % (AwardItem.RatioItems[i].dwItemNum[1] - AwardItem.RatioItems[i].dwItemNum[0] + 1);
+				}
+
+				if (tempItem.dwItemNum > 0)
+				{
+					vtItemList.push_back(tempItem);
+					UsedFlag[i] = true;
+					UsedValue += AwardItem.RatioItems[i].dwRatio;
+				}
+			}
+			else
+			{
+				dwRandValue -= AwardItem.RatioItems[i].dwRatio;
+			}
+		}
+	}
+	*/
 
 	return TRUE;
 }
@@ -1221,6 +1290,33 @@ StBulletInfo* CStaticData::GetBulletInfo(UINT32 dwBulletID)
 	ERROR_RETURN_NULL(dwBulletID != 0);
 	auto itor = m_mapBulletInfo.find(dwBulletID);
 	if (itor != m_mapBulletInfo.end())
+	{
+		return &itor->second;
+	}
+
+	return NULL;
+}
+
+BOOL CStaticData::ReadChargeInfo(CppSQLite3Query& QueryData)
+{
+	m_mapChargeInfo.clear();
+
+	while (!QueryData.eof())
+	{
+		StChargeInfo stValue;
+		stValue.dwProductID = QueryData.getIntField("Id");
+		m_mapChargeInfo.insert(std::make_pair(stValue.dwProductID, stValue));
+		QueryData.nextRow();
+	}
+
+	return TRUE;
+}
+
+StChargeInfo* CStaticData::GetChargeInfo(UINT32 dwProductID)
+{
+	ERROR_RETURN_NULL(dwProductID != 0);
+	auto itor = m_mapChargeInfo.find(dwProductID);
+	if (itor != m_mapChargeInfo.end())
 	{
 		return &itor->second;
 	}

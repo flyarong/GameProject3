@@ -10,7 +10,7 @@ void NetIoOperatorData::Reset()
 	memset(&Overlap, 0, sizeof(Overlap));
 #endif
 
-	dwCmdType = 0;
+	dwOpType = 0;
 	dwConnID = 0;
 
 	pDataBuffer = NULL;
@@ -19,15 +19,15 @@ void NetIoOperatorData::Reset()
 
 CConnection::CConnection()
 {
-	m_hSocket			= INVALID_SOCKET;
+	m_hSocket           = INVALID_SOCKET;
 
-	m_pDataHandler		= NULL;
+	m_pDataHandler      = NULL;
 
-	m_dwDataLen			= 0;
+	m_dwDataLen         = 0;
 
-	m_bConnected		= FALSE;
+	m_bConnected        = FALSE;
 
-	m_u64ConnData        = 0;
+	m_u64ConnData       = 0;
 
 	m_dwConnID          = 0;
 
@@ -37,11 +37,11 @@ CConnection::CConnection()
 
 	m_nCheckNo          = 0;
 
-	m_IsSending			= FALSE;
+	m_IsSending         = FALSE;
 
-	m_pSendingBuffer	= NULL;
+	m_pSendingBuffer    = NULL;
 
-	m_nSendingPos		= 0;
+	m_nSendingPos       = 0;
 }
 
 CConnection::~CConnection(void)
@@ -65,7 +65,7 @@ BOOL CConnection::DoReceive()
 	DWORD dwRecvBytes = 0, dwFlags = 0;
 
 	m_IoOverlapRecv.Reset();
-	m_IoOverlapRecv.dwCmdType = NET_MSG_RECV;
+	m_IoOverlapRecv.dwOpType = NET_OP_RECV;
 	m_IoOverlapRecv.dwConnID = m_dwConnID;
 
 	int nRet = WSARecv(m_hSocket, &DataBuf, 1, &dwRecvBytes, &dwFlags, (LPOVERLAPPED)&m_IoOverlapRecv, NULL);
@@ -76,7 +76,7 @@ BOOL CConnection::DoReceive()
 		int nError = CommonSocket::GetSocketLastError();
 		if(nError != ERROR_IO_PENDING )
 		{
-			CLog::GetInstancePtr()->LogError("关闭连接，因为接收数据发生错误:%s!", CommonSocket::GetLastErrorStr(nError).c_str());
+			CLog::GetInstancePtr()->LogError("关闭连接，因为接收数据发生错误:%s!", CommonFunc::GetLastErrorStr(nError).c_str());
 
 			return FALSE;
 		}
@@ -103,7 +103,7 @@ BOOL CConnection::DoReceive()
 			}
 			else
 			{
-				CLog::GetInstancePtr()->LogError("读失败， 可能连接己断开 原因:%s!!", CommonSocket::GetLastErrorStr(nErr).c_str());
+				CLog::GetInstancePtr()->LogError("读失败， 可能连接己断开 原因:%s!!", CommonFunc::GetLastErrorStr(nErr).c_str());
 
 				return FALSE;
 			}
@@ -178,7 +178,7 @@ BOOL CConnection::ExtractBuffer()
 	{
 		if(m_pCurRecvBuffer != NULL)
 		{
-			if ((m_pCurRecvBuffer->GetTotalLenth() + m_dwDataLen ) < m_pCurBufferSize)
+			if ((m_pCurRecvBuffer->GetTotalLenth() + m_dwDataLen ) < m_nCurBufferSize)
 			{
 				memcpy(m_pCurRecvBuffer->GetBuffer() + m_pCurRecvBuffer->GetTotalLenth(), m_pBufPos, m_dwDataLen);
 				m_pBufPos = m_pRecvBuf;
@@ -188,11 +188,12 @@ BOOL CConnection::ExtractBuffer()
 			}
 			else
 			{
-				memcpy(m_pCurRecvBuffer->GetBuffer() + m_pCurRecvBuffer->GetTotalLenth(), m_pBufPos, m_pCurBufferSize - m_pCurRecvBuffer->GetTotalLenth());
-				m_dwDataLen -= m_pCurBufferSize - m_pCurRecvBuffer->GetTotalLenth();
-				m_pBufPos += m_pCurBufferSize - m_pCurRecvBuffer->GetTotalLenth();
-				m_pCurRecvBuffer->SetTotalLenth(m_pCurBufferSize);
-				m_pDataHandler->OnDataHandle(m_pCurRecvBuffer, this);
+				memcpy(m_pCurRecvBuffer->GetBuffer() + m_pCurRecvBuffer->GetTotalLenth(), m_pBufPos, m_nCurBufferSize - m_pCurRecvBuffer->GetTotalLenth());
+				m_dwDataLen -= m_nCurBufferSize - m_pCurRecvBuffer->GetTotalLenth();
+				m_pBufPos += m_nCurBufferSize - m_pCurRecvBuffer->GetTotalLenth();
+				m_pCurRecvBuffer->SetTotalLenth(m_nCurBufferSize);
+				m_LastRecvTick = CommonFunc::GetTickCount();
+				m_pDataHandler->OnDataHandle(m_pCurRecvBuffer, GetConnectionID());
 				m_pCurRecvBuffer = NULL;
 			}
 		}
@@ -207,10 +208,8 @@ BOOL CConnection::ExtractBuffer()
 		//在这里对包头进行检查, 如果不合法就要返回FALSE;
 		if (!CheckHeader(m_pBufPos))
 		{
-			return FALSE;
+			//return FALSE;
 		}
-
-		ERROR_RETURN_FALSE(pHeader->dwSize != 0);
 
 		UINT32 dwPacketSize = pHeader->dwSize;
 
@@ -232,7 +231,9 @@ BOOL CConnection::ExtractBuffer()
 
 			pDataBuffer->SetTotalLenth(dwPacketSize);
 
-			m_pDataHandler->OnDataHandle(pDataBuffer, this);
+			m_LastRecvTick = CommonFunc::GetTickCount();
+
+			m_pDataHandler->OnDataHandle(pDataBuffer, GetConnectionID());
 		}
 		else
 		{
@@ -243,7 +244,7 @@ BOOL CConnection::ExtractBuffer()
 			m_dwDataLen = 0;
 			m_pBufPos = m_pRecvBuf;
 			m_pCurRecvBuffer = pDataBuffer;
-			m_pCurBufferSize = dwPacketSize;
+			m_nCurBufferSize = dwPacketSize;
 		}
 	}
 
@@ -273,7 +274,7 @@ BOOL CConnection::Close()
 
 	if(m_pDataHandler != NULL)
 	{
-		m_pDataHandler->OnCloseConnect(this);
+		m_pDataHandler->OnCloseConnect(GetConnectionID());
 	}
 
 	m_bConnected = FALSE;
@@ -306,7 +307,6 @@ BOOL CConnection::HandleRecvEvent(UINT32 dwBytes)
 		return FALSE;
 	}
 #endif
-	m_LastRecvTick = CommonFunc::GetTickCount();
 	return TRUE;
 }
 
@@ -365,19 +365,20 @@ BOOL CConnection::Reset()
 
 	m_pBufPos   = m_pRecvBuf;
 
+	m_LastRecvTick = 0;
 	if(m_pCurRecvBuffer != NULL)
 	{
 		m_pCurRecvBuffer->Release();
+		m_pCurRecvBuffer = NULL;
 	}
 
-	m_pCurRecvBuffer = NULL;
 
 	m_nCheckNo = 0;
 
 	m_IsSending	= FALSE;
 
 	IDataBuffer* pBuff = NULL;
-	while(m_SendBuffList.pop(pBuff))
+	while(m_SendBuffList.try_dequeue(pBuff))
 	{
 		pBuff->Release();
 	}
@@ -388,7 +389,7 @@ BOOL CConnection::Reset()
 
 BOOL CConnection::SendBuffer(IDataBuffer* pBuff)
 {
-	return m_SendBuffList.push(pBuff);
+	return m_SendBuffList.enqueue(pBuff);
 }
 
 BOOL CConnection::CheckHeader(CHAR* m_pPacket)
@@ -399,7 +400,7 @@ BOOL CConnection::CheckHeader(CHAR* m_pPacket)
 	3.包的序号
 	*/
 	PacketHeader* pHeader = (PacketHeader*)m_pBufPos;
-	if (pHeader->CheckCode != 0x88)
+	if (pHeader->CheckCode != CODE_VALUE)
 	{
 		return FALSE;
 	}
@@ -409,27 +410,47 @@ BOOL CConnection::CheckHeader(CHAR* m_pPacket)
 		return FALSE;
 	}
 
-	if (pHeader->dwMsgID > 4999999)
+	if (pHeader->dwSize <= 0)
+	{
+		CLog::GetInstancePtr()->LogError("验证-失败 pHeader->dwSize <= 0, pHeader->dwMsgID:%d", pHeader->dwSize, pHeader->dwMsgID);
+		return FALSE;
+	}
+
+	if (pHeader->dwMsgID > 399999 || pHeader->dwMsgID == 0)
 	{
 		return FALSE;
 	}
 
-	/*if(m_nCheckNo == 0)
-	{
-	m_nCheckNo = pHeader->dwPacketNo - pHeader->wCommandID^pHeader->dwSize;
-	}
-	else
-	{
-	if(pHeader->dwPacketNo = pHeader->wCommandID^pHeader->dwSize+m_nCheckNo)
-	{
-	m_nCheckNo += 1;
-	}
-	else
-	{
-	return FALSE;
-	}*/
+	UINT32 dwPktChkNo = pHeader->dwPacketNo - (pHeader->dwMsgID ^ pHeader->dwSize);
 
-	return TRUE;
+	if (dwPktChkNo <= 0)
+	{
+		return FALSE;
+	}
+
+	if(m_nCheckNo == 0)
+	{
+		m_nCheckNo = dwPktChkNo + 1;
+		return TRUE;
+	}
+
+	if(m_nCheckNo == dwPktChkNo)
+	{
+		m_nCheckNo += 1;
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+UINT32 CConnection::GetIpAddr(BOOL bHost)
+{
+	if (bHost)
+	{
+		return m_dwIpAddr;
+	}
+
+	return CommonSocket::HostToNet(m_dwIpAddr);
 }
 
 #ifdef WIN32
@@ -441,19 +462,13 @@ BOOL CConnection::DoSend()
 	int nCurPos = 0;
 
 	IDataBuffer* pBuffer = NULL;
-	while(m_SendBuffList.pop(pBuffer))
+	while(m_SendBuffList.try_dequeue(pBuffer))
 	{
 		nSendSize += pBuffer->GetTotalLenth();
 
 		if(pFirstBuff == NULL && pSendingBuffer == NULL)
 		{
 			pFirstBuff = pBuffer;
-
-			if(nSendSize >= RECV_BUF_SIZE)
-			{
-				pSendingBuffer = pBuffer;
-				break;
-			}
 
 			pBuffer = NULL;
 		}
@@ -474,11 +489,21 @@ BOOL CConnection::DoSend()
 			nCurPos += pBuffer->GetTotalLenth();
 			pBuffer->Release();
 			pBuffer = NULL;
-			if(nSendSize >= RECV_BUF_SIZE)
-			{
-				break;
-			}
 		}
+
+		IDataBuffer** pPeekBuff = m_SendBuffList.peek();
+		if (pPeekBuff == NULL)
+		{
+			break;
+		}
+
+		pBuffer = *pPeekBuff;
+		if (nSendSize + pBuffer->GetTotalLenth() >= RECV_BUF_SIZE)
+		{
+			break;
+		}
+
+		pBuffer = NULL;
 	}
 
 	if(pSendingBuffer == NULL)
@@ -496,7 +521,7 @@ BOOL CConnection::DoSend()
 	DataBuf.len = pSendingBuffer->GetTotalLenth();
 	DataBuf.buf = pSendingBuffer->GetBuffer();
 	m_IoOverlapSend.Reset();
-	m_IoOverlapSend.dwCmdType   = NET_MSG_SEND;
+	m_IoOverlapSend.dwOpType = NET_OP_SEND;
 	m_IoOverlapSend.pDataBuffer = pSendingBuffer;
 	m_IoOverlapSend.dwConnID = m_dwConnID;
 
@@ -504,10 +529,10 @@ BOOL CConnection::DoSend()
 	int nRet = WSASend(m_hSocket, &DataBuf, 1, &dwSendBytes, 0, (LPOVERLAPPED)&m_IoOverlapSend, NULL);
 	if(nRet == 0) //发送成功
 	{
-		if(dwSendBytes < DataBuf.len)
-		{
-			CLog::GetInstancePtr()->LogError("发送线程:直接发送功数据send:%d--Len:%d!", dwSendBytes, DataBuf.len);
-		}
+		//if(dwSendBytes < DataBuf.len)
+		//{
+		//	CLog::GetInstancePtr()->LogError("发送线程:直接发送数据成功send:%d--Len:%d!", dwSendBytes, DataBuf.len);
+		//}
 	}
 	else if( nRet == -1 ) //发送出错
 	{
@@ -515,7 +540,7 @@ BOOL CConnection::DoSend()
 		if(errCode != ERROR_IO_PENDING)
 		{
 			Close();
-			CLog::GetInstancePtr()->LogError("发送线程:发送失败, 连接关闭原因:%s!", CommonSocket::GetLastErrorStr(errCode).c_str());
+			CLog::GetInstancePtr()->LogError("发送线程:发送失败, 连接关闭原因:%s!", CommonFunc::GetLastErrorStr(errCode).c_str());
 		}
 	}
 
@@ -538,7 +563,7 @@ BOOL CConnection::DoSend()
 	//}
 	// #define E_SEND_SUCCESS				1
 	// #define E_SEND_UNDONE				2
-	// #define E_SEND_ERROR				3
+	// #define E_SEND_ERROR				    3
 
 
 	if (m_pSendingBuffer != NULL)
@@ -568,7 +593,7 @@ BOOL CConnection::DoSend()
 	}
 
 	IDataBuffer* pBuffer = NULL;
-	while(m_SendBuffList.pop(pBuffer))
+	while(m_SendBuffList.try_dequeue(pBuffer))
 	{
 		if (pBuffer == NULL)
 		{
@@ -643,19 +668,15 @@ CConnection* CConnectionMgr::CreateConnection()
 	return pTemp;
 }
 
-CConnection* CConnectionMgr::GetConnectionByConnID( UINT32 dwConnID )
+CConnection* CConnectionMgr::GetConnectionByID( UINT32 dwConnID )
 {
 	ERROR_RETURN_NULL(dwConnID != 0);
 
 	UINT32 dwIndex = dwConnID % m_vtConnList.size();
 
-	if (dwIndex == 0)
-	{
-		dwIndex = (UINT32)m_vtConnList.size();
-	}
+	CConnection* pConnect = m_vtConnList.at(dwIndex == 0 ? (m_vtConnList.size() - 1) : (dwIndex - 1));
 
-	CConnection* pConnect = m_vtConnList.at(dwIndex - 1);
-	if(pConnect->GetConnectionID() != dwConnID)
+	if (pConnect->GetConnectionID() != dwConnID)
 	{
 		return NULL;
 	}
@@ -680,7 +701,7 @@ BOOL CConnectionMgr::DeleteConnection(CConnection* pConnection)
 
 	if(m_pFreeConnTail == NULL)
 	{
-		ERROR_RETURN_FALSE(m_pFreeConnRoot != NULL);
+		ERROR_RETURN_FALSE(m_pFreeConnRoot == NULL);
 
 		m_pFreeConnTail = m_pFreeConnRoot = pConnection;
 	}
@@ -707,12 +728,31 @@ BOOL CConnectionMgr::DeleteConnection(CConnection* pConnection)
 	return TRUE;
 }
 
+BOOL CConnectionMgr::DeleteConnection(UINT32 nConnID)
+{
+	ERROR_RETURN_FALSE(nConnID != 0);
+	CConnection* pConnection = GetConnectionByID(nConnID);
+	ERROR_RETURN_FALSE(pConnection != NULL);
+
+	return DeleteConnection(pConnection);
+}
+
 BOOL CConnectionMgr::CloseAllConnection()
 {
 	CConnection* pConn = NULL;
 	for(size_t i = 0; i < m_vtConnList.size(); i++)
 	{
 		pConn = m_vtConnList.at(i);
+		if (!pConn->IsConnectionOK())
+		{
+			continue;
+		}
+
+		if (pConn->m_hSocket == INVALID_SOCKET)
+		{
+			continue;
+		}
+
 		pConn->Close();
 	}
 
@@ -744,15 +784,25 @@ BOOL CConnectionMgr::CheckConntionAvalible()
 
 	for(std::vector<CConnection*>::size_type i = 0; i < m_vtConnList.size(); i++)
 	{
-		CConnection* pTemp = m_vtConnList.at(i);
-		if(!pTemp->IsConnectionOK())
+		CConnection* pConnection = m_vtConnList.at(i);
+		if(!pConnection->IsConnectionOK())
 		{
 			continue;
 		}
 
-		if(curTick > (pTemp->m_LastRecvTick + 30000))
+		if (pConnection->GetConnectionData() == 1)
 		{
-			pTemp->Close();
+			continue;
+		}
+
+		if (pConnection->m_LastRecvTick <= 0)
+		{
+			continue;
+		}
+		if(curTick > (pConnection->m_LastRecvTick + 30000))
+		{
+			CLog::GetInstancePtr()->LogError("CConnectionMgr::CheckConntionAvalible 超时主动断开连接 ConnID:%d", pConnection->GetConnectionID());
+			pConnection->Close();
 		}
 	}
 

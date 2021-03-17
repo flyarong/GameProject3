@@ -1,6 +1,6 @@
 ﻿#ifndef __GUILD_HEADER_H__
 #define __GUILD_HEADER_H__
-#include "../ServerData/GuildData.h"
+#include "GuildData.h"
 
 class CGuild
 {
@@ -16,12 +16,13 @@ public:
 
 	UINT64 GetGuildID();
 
-public:
 	MemberDataObject* GetGuildMember(UINT64 uID);
 
 	MemberDataObject* GetLeader();
 
 	MemberDataObject* AddGuildMember(UINT64 uRoleID);
+
+	BOOL BroadMessageToAll(UINT32 dwMsgID, const google::protobuf::Message& pdata);
 
 public:
 

@@ -17,6 +17,7 @@ CNetManager::CNetManager(void)
 
 CNetManager::~CNetManager(void)
 {
+	m_pBufferHandler = NULL;
 }
 
 BOOL CNetManager::Start(UINT16 nPortNum, UINT32 nMaxConn, IDataHandler* pBufferHandler, std::string& strListenIp)
@@ -34,7 +35,9 @@ BOOL CNetManager::Start(UINT16 nPortNum, UINT32 nMaxConn, IDataHandler* pBufferH
 
 	boost::asio::ip::tcp::endpoint ep(boost::asio::ip::address_v4::from_string(strListenIp), nPortNum);
 
-	m_pAcceptor = new boost::asio::ip::tcp::acceptor(m_IoService, ep);
+	m_pAcceptor = new boost::asio::ip::tcp::acceptor(m_IoService, ep, true);
+
+	//m_pAcceptor->set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
 
 	WaitForConnect();
 
@@ -43,9 +46,24 @@ BOOL CNetManager::Start(UINT16 nPortNum, UINT32 nMaxConn, IDataHandler* pBufferH
 	return TRUE;
 }
 
-BOOL CNetManager::Close()
+BOOL CNetManager::Stop()
 {
 	m_IoService.stop();
+
+	m_pAcceptor->close();
+
+	delete m_pAcceptor;
+
+	m_pAcceptor = NULL;
+
+	if (m_pWorkThread != NULL)
+	{
+		m_pWorkThread->join();
+
+		delete m_pWorkThread;
+
+		m_pWorkThread = NULL;
+	}
 
 	CConnectionMgr::GetInstancePtr()->CloseAllConnection();
 
@@ -58,8 +76,11 @@ BOOL CNetManager::Close()
 BOOL CNetManager::WaitForConnect()
 {
 	CConnection* pConnection = CConnectionMgr::GetInstancePtr()->CreateConnection();
-	ERROR_RETURN_FALSE(pConnection != NULL);
-
+	if (pConnection == NULL)
+	{
+		return FALSE;
+	}
+	pConnection->SetDataHandler(m_pBufferHandler);
 	m_pAcceptor->async_accept(pConnection->GetSocket(), boost::bind(&CNetManager::HandleAccept, this,  pConnection, boost::asio::placeholders::error));
 
 	return TRUE;
@@ -67,8 +88,6 @@ BOOL CNetManager::WaitForConnect()
 
 CConnection* CNetManager::ConnectTo_Sync(std::string strIpAddr, UINT16 sPort)
 {
-
-
 	return NULL;
 }
 
@@ -88,7 +107,7 @@ CConnection* CNetManager::ConnectTo_Async( std::string strIpAddr, UINT16 sPort )
 	boost::asio::ip::tcp::resolver resolver(m_IoService);
 	boost::asio::ip::tcp::resolver::query query(strIpAddr, CommonConvert::IntToString(sPort));
 	boost::asio::ip::tcp::resolver::iterator enditor = resolver.resolve(query);
-
+	pConnection->SetDataHandler(m_pBufferHandler);
 	boost::asio::async_connect(pConnection->GetSocket(), enditor, boost::bind(&CNetManager::HandleConnect, this, pConnection, boost::asio::placeholders::error));
 
 	return pConnection;
@@ -99,7 +118,7 @@ void CNetManager::HandleConnect(CConnection* pConnection, const boost::system::e
 {
 	if (!e)
 	{
-		m_pBufferHandler->OnNewConnect(pConnection);
+		m_pBufferHandler->OnNewConnect(pConnection->GetConnectionID());
 
 		pConnection->DoReceive();
 	}
@@ -115,11 +134,9 @@ void CNetManager::HandleAccept(CConnection* pConnection, const boost::system::er
 {
 	if (!e)
 	{
-		m_pBufferHandler->OnNewConnect(pConnection);
+		m_pBufferHandler->OnNewConnect(pConnection->GetConnectionID());
 
 		pConnection->DoReceive();
-
-		WaitForConnect();
 	}
 	else
 	{
@@ -127,14 +144,16 @@ void CNetManager::HandleAccept(CConnection* pConnection, const boost::system::er
 		//这里是监听出错，需要处理．
 	}
 
+	WaitForConnect();
+
 	return ;
 }
 
-BOOL	CNetManager::SendMsgBufByConnID(UINT32 dwConnID, IDataBuffer* pBuffer)
+BOOL	CNetManager::SendMessageBuff(UINT32 dwConnID, IDataBuffer* pBuffer)
 {
 	ERROR_RETURN_FALSE(dwConnID != 0);
 	ERROR_RETURN_FALSE(pBuffer != 0);
-	CConnection* pConn = CConnectionMgr::GetInstancePtr()->GetConnectionByConnID(dwConnID);
+	CConnection* pConn = CConnectionMgr::GetInstancePtr()->GetConnectionByID(dwConnID);
 	if (pConn == NULL)
 	{
 		//表示连接己经失败断开了，这个连接ID不可用了。
@@ -157,14 +176,14 @@ BOOL	CNetManager::SendMsgBufByConnID(UINT32 dwConnID, IDataBuffer* pBuffer)
 }
 
 
-BOOL CNetManager::SendMessageByConnID(UINT32 dwConnID, UINT32 dwMsgID, UINT64 u64TargetID, UINT32 dwUserData, const char* pData, UINT32 dwLen)
+BOOL CNetManager::SendMessageData(UINT32 dwConnID, UINT32 dwMsgID, UINT64 u64TargetID, UINT32 dwUserData, const char* pData, UINT32 dwLen)
 {
 	if (dwConnID <= 0)
 	{
 		return FALSE;
 	}
 
-	CConnection* pConn = CConnectionMgr::GetInstancePtr()->GetConnectionByConnID(dwConnID);
+	CConnection* pConn = CConnectionMgr::GetInstancePtr()->GetConnectionByID(dwConnID);
 	if (pConn == NULL)
 	{
 		//表示连接己经失败断开了，这个连接ID不可用了。
@@ -181,7 +200,7 @@ BOOL CNetManager::SendMessageByConnID(UINT32 dwConnID, UINT32 dwMsgID, UINT64 u6
 	ERROR_RETURN_FALSE(pDataBuffer != NULL);
 
 	PacketHeader* pHeader = (PacketHeader*)pDataBuffer->GetBuffer();
-	pHeader->CheckCode = 0x88;
+	pHeader->CheckCode = CODE_VALUE;
 	pHeader->dwUserData = dwUserData;
 	pHeader->u64TargetID = u64TargetID;
 	pHeader->dwSize = dwLen + sizeof(PacketHeader);

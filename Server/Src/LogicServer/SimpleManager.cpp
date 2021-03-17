@@ -19,14 +19,14 @@ CSimpleManager* CSimpleManager::GetInstancePtr()
 	return &_StaticMgr;
 }
 
-BOOL CSimpleManager::LoadSimpleData(CppMySQL3DB& tDBConnection)
+BOOL CSimpleManager::LoadData(CppMySQL3DB& tDBConnection)
 {
 	CppMySQLQuery QueryResult = tDBConnection.querySQL("SELECT * FROM player");
 	while(!QueryResult.eof())
 	{
 		CSimpleInfo* pInfo	= new CSimpleInfo();
 		pInfo->m_uRoleID	= QueryResult.getInt64Field("id");
-		pInfo->m_uAccountID = QueryResult.getInt64Field("account_id");
+		pInfo->m_uAccountID = QueryResult.getInt64Field("accountid");
 		pInfo->m_strName	= QueryResult.getStringField("name");
 		pInfo->m_dwCarrerID	= QueryResult.getIntField("carrerid");
 		pInfo->m_uCreateTime = QueryResult.getInt64Field("createtime");
@@ -90,31 +90,44 @@ UINT64 CSimpleManager::GetLogoffTime( UINT64 u64ID )
 	return pInfo->m_uLogoffTime;
 }
 
-UINT32 CSimpleManager::GetFightValue( UINT64 u64ID )
+UINT64 CSimpleManager::GetFightValue( UINT64 u64ID )
 {
 	CSimpleInfo* pInfo = GetSimpleInfoByID(u64ID);
 	ERROR_RETURN_NULL(pInfo != NULL);
 
-	return pInfo->m_dwFightValue;
+	return pInfo->m_uFightValue;
 }
 
-BOOL CSimpleManager::SetFightValue( UINT64 u64ID, UINT32 dwFight, UINT32 dwLevel )
+BOOL CSimpleManager::SetFightValue( UINT64 u64ID, UINT64 uFight, UINT32 dwLevel )
 {
 	CSimpleInfo* pInfo = GetSimpleInfoByID(u64ID);
 	ERROR_RETURN_FALSE(pInfo != NULL);
 
-	pInfo->m_dwFightValue = dwFight;
+	pInfo->m_uFightValue = uFight;
 	pInfo->m_dwLevel = dwLevel;
 
 	return TRUE;
 }
 
-BOOL CSimpleManager::SetPlayerName( UINT64 u64ID, std::string strName )
+BOOL CSimpleManager::SetName( UINT64 u64ID, std::string strName )
 {
 	CSimpleInfo* pInfo = GetSimpleInfoByID(u64ID);
 	ERROR_RETURN_FALSE(pInfo != NULL);
 
+	auto itor = m_mapName2ID.find(pInfo->m_strName);
+	if (itor != m_mapName2ID.end())
+	{
+		m_mapName2ID.erase(itor);
+	}
+
 	pInfo->m_strName = strName;
+	auto ret = m_mapName2ID.insert(std::make_pair(strName, pInfo->m_uRoleID));
+	if (!ret.second)
+	{
+		CLog::GetInstancePtr()->LogError("CSimpleManager::SetPlayerName Error Role Name :%s already exist!", pInfo->m_strName.c_str());
+		return FALSE;
+	}
+
 	return TRUE;
 }
 
@@ -168,6 +181,16 @@ BOOL CSimpleManager::SetGuildID( UINT64 u64ID, UINT64 guildid )
 	return TRUE;
 }
 
+BOOL CSimpleManager::SetRoleDelete(UINT64 u64ID, BOOL bDelete)
+{
+	CSimpleInfo* pInfo = GetSimpleInfoByID(u64ID);
+	ERROR_RETURN_FALSE(pInfo != NULL);
+
+	pInfo->m_IsDelete = bDelete;
+
+	return TRUE;
+}
+
 BOOL CSimpleManager::CheckNameExist(std::string strName)
 {
 	auto itor = m_mapName2ID.find(strName);
@@ -177,6 +200,26 @@ BOOL CSimpleManager::CheckNameExist(std::string strName)
 	}
 
 	return FALSE;
+}
+
+BOOL CSimpleManager::CheckNameFormat(std::string strName)
+{
+	if (strName.size() > (ROLE_NAME_LEN - 30))
+	{
+		return FALSE;
+	}
+
+	if (strName.size() < 4)
+	{
+		return FALSE;
+	}
+
+	if (CommonConvert::HasSymbol(strName.c_str(), (const char*)"\'\" \\"))
+	{
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 UINT64 CSimpleManager::GetGuildID( UINT64 u64ID )
@@ -191,24 +234,11 @@ UINT32 CSimpleManager::GetTotalCount()
 	return (UINT32)m_mapID2Simple.size();
 }
 
-UINT32 CSimpleManager::GetOnline()
-{
-	return 0;
-}
-
-BOOL CSimpleManager::SetOnline(UINT64 u64ID, BOOL bOnline)
-{
-	CSimpleInfo* pInfo = GetSimpleInfoByID(u64ID);
-	ERROR_RETURN_FALSE(pInfo != NULL);
-	pInfo->m_bOnline = bOnline;
-	return TRUE;
-}
-
 BOOL CSimpleManager::GetRoleIDsByAccountID(UINT64 uAccountID, std::vector<UINT64>& vtRoleIDs)
 {
-	for (auto itor = m_mapID2Simple.begin();itor != m_mapID2Simple.end(); ++itor)
+	for (auto itor = m_mapID2Simple.begin(); itor != m_mapID2Simple.end(); ++itor)
 	{
-		CSimpleInfo *pInfo = itor->second;
+		CSimpleInfo* pInfo = itor->second;
 		ERROR_RETURN_FALSE(pInfo != NULL);
 
 		if (pInfo->m_uAccountID == uAccountID)
@@ -230,7 +260,7 @@ CSimpleInfo* CSimpleManager::CreateSimpleInfo( UINT64 u64ID, UINT64 u64AccID, st
 	pInfo->m_uCreateTime = CommonFunc::GetCurrTime();
 	pInfo->m_dwVipLevel = 0;
 	pInfo->m_dwLevel = 0;
-	pInfo->m_dwFightValue = 0;
+	pInfo->m_uFightValue = 0;
 
 	m_mapID2Simple.insert(std::make_pair(u64ID, pInfo));
 
@@ -245,7 +275,12 @@ BOOL CSimpleManager::AddSimpleInfo(CSimpleInfo* pInfo)
 
 	m_mapID2Simple.insert(std::make_pair(pInfo->m_uRoleID, pInfo));
 
-	m_mapName2ID.insert(std::make_pair(pInfo->m_strName, pInfo->m_uRoleID));
+	auto ret = m_mapName2ID.insert(std::make_pair(pInfo->m_strName, pInfo->m_uRoleID));
+
+	if (!ret.second)
+	{
+		CLog::GetInstancePtr()->LogError("CSimpleManager::AddSimpleInfo Error Role Name :%s already exist!", pInfo->m_strName.c_str());
+	}
 
 	return TRUE;
 }

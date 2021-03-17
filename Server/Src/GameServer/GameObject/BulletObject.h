@@ -1,8 +1,7 @@
 ﻿#ifndef __BULLET_OBJECT_H__
 #define __BULLET_OBJECT_H__
-#include "XMath.h"
 #include "../Message/Msg_Move.pb.h"
-#include "../StaticData/SkillStruct.h"
+#include "SkillStruct.h"
 
 class CSceneObject;
 class CSkillObject;

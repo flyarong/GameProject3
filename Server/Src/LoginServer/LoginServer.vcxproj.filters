@@ -39,8 +39,23 @@
     <ClCompile Include="Main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="WebCommandHandler.cpp">
+    <ClCompile Include="LoginClientMgr.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="WebCommandMgr.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\WatcherClient\WatcherClient.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Message\Msg_Account.pb.cc">
+      <Filter>Proto</Filter>
+    </ClCompile>
+    <ClCompile Include="GiftCodeManager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Message\Msg_Base.pb.cc">
+      <Filter>Proto</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -60,6 +75,24 @@
       <Filter>Proto</Filter>
     </ClInclude>
     <ClInclude Include="..\Message\Msg_Game.pb.h">
+      <Filter>Proto</Filter>
+    </ClInclude>
+    <ClInclude Include="LoginClientMgr.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="WebCommandMgr.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\WatcherClient\WatcherClient.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Message\Msg_Account.pb.h">
+      <Filter>Proto</Filter>
+    </ClInclude>
+    <ClInclude Include="GiftCodeManager.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Message\Msg_Base.pb.h">
       <Filter>Proto</Filter>
     </ClInclude>
   </ItemGroup>

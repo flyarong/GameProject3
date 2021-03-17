@@ -5,7 +5,11 @@
 
 CDataPool::CDataPool()
 {
-
+	m_dwSharePageSize = CConfigFile::GetInstancePtr()->GetIntValue("share_page_size");
+	if (m_dwSharePageSize <= 1)
+	{
+		m_dwSharePageSize = 1024;
+	}
 }
 
 CDataPool::~CDataPool()
@@ -22,6 +26,9 @@ CDataPool* CDataPool::GetInstancePtr()
 
 BOOL CDataPool::InitDataPool()
 {
+	UINT32 nAreaID = CConfigFile::GetInstancePtr()->GetIntValue("areaid");
+	ERROR_RETURN_FALSE(nAreaID > 0);
+
 	m_vtDataObjectPools.assign(ESD_END, NULL);
 	m_vtDataObjectPools[ESD_ROLE]           = new SharedMemory<RoleDataObject>(ESD_ROLE, 1024);
 	m_vtDataObjectPools[ESD_GLOBAL]         = new SharedMemory<GlobalDataObject>(ESD_GLOBAL, 1024);
@@ -37,15 +44,19 @@ BOOL CDataPool::InitDataPool()
 	m_vtDataObjectPools[ESD_TASK]           = new SharedMemory<TaskDataObject>(ESD_TASK, 1024);
 	m_vtDataObjectPools[ESD_MOUNT]          = new SharedMemory<MountDataObject>(ESD_MOUNT, 1024);
 	m_vtDataObjectPools[ESD_MAIL]           = new SharedMemory<MailDataObject>(ESD_MAIL, 1024);
-	m_vtDataObjectPools[ESD_OFFMAIL]        = new SharedMemory<OffMailDataObject>(ESD_OFFMAIL, 1024);
+	m_vtDataObjectPools[ESD_OFFDATA]        = new SharedMemory<OffDataObject>(ESD_OFFDATA, 1024);
 	m_vtDataObjectPools[ESD_GROUP_MAIL]     = new SharedMemory<GroupMailDataObject>(ESD_GROUP_MAIL, 1024);
 	m_vtDataObjectPools[ESD_ACTIVITY]       = new SharedMemory<ActivityDataObject>(ESD_ACTIVITY, 1024);
 	m_vtDataObjectPools[ESD_COUNTER]        = new SharedMemory<CounterDataObject>(ESD_COUNTER, 1024);
 	m_vtDataObjectPools[ESD_FRIEND]         = new SharedMemory<FriendDataObject>(ESD_FRIEND, 1024);
 	m_vtDataObjectPools[ESD_SKILL]          = new SharedMemory<SkillDataObject>(ESD_SKILL, 1024);
+	m_vtDataObjectPools[ESD_PAYMENT]        = new SharedMemory<PayDataObject>(ESD_PAYMENT, 1024);
+	m_vtDataObjectPools[ESD_SEAL_ROLE]      = new SharedMemory<SealDataObject>(ESD_SEAL_ROLE, 1024);
 
-	for (int i = ESD_ROLE; i < ESD_END; i++)
+	for (int i = ESD_BEGIN + 1; i < ESD_END; i++)
 	{
+		ERROR_RETURN_FALSE(m_vtDataObjectPools[i] != NULL);
+
 		m_vtDataObjectPools[i]->InitToMap();
 	}
 
@@ -54,11 +65,14 @@ BOOL CDataPool::InitDataPool()
 
 BOOL CDataPool::ReleaseDataPool()
 {
-	for (int i = ESD_ROLE; i < ESD_END; i++)
+	for (int i = ESD_BEGIN + 1; i < ESD_END; i++)
 	{
 		SharedMemoryBase* pShareBase = m_vtDataObjectPools.at(i);
 		delete pShareBase;
 	}
+
+	m_vtDataObjectPools.clear();
+
 	return TRUE;
 }
 

@@ -1,7 +1,6 @@
 ﻿#include "stdafx.h"
 #include "CommonConvert.h"
 
-
 INT32 CommonConvert::StringToInt(char* pStr)
 {
 	if(pStr == NULL)
@@ -19,7 +18,11 @@ INT64 CommonConvert::StringToInt64(char* pStr)
 		return 0;
 	}
 
-	return atol(pStr);
+#ifdef WIN32
+	return _atoi64(pStr);
+#else
+	return atoll(pStr);
+#endif
 }
 
 INT64 CommonConvert::StringToInt64(const char* pStr)
@@ -57,7 +60,7 @@ FLOAT  CommonConvert::StringToFloat(char* pStr)
 	return (FLOAT)atof(pStr);
 }
 
-DOUBLE CommonConvert::StringToDouble(char* pStr)
+DOUBLE CommonConvert::StringToDouble(const char* pStr)
 {
 	if (pStr == NULL)
 	{
@@ -384,48 +387,56 @@ BOOL CommonConvert::SpliteString(std::string strSrc,  char cDelim, std::vector<s
 	return TRUE;
 }
 
+/*
 std::wstring CommonConvert::Utf8_To_Unicode( std::string strSrc )
 {
-	wchar_t wBuff[102400] = {0};
 #ifdef WIN32
+	wchar_t wBuff[102400] = { 0 };
 	MultiByteToWideChar(CP_UTF8, 0, strSrc.c_str(), -1, wBuff, 102400);
 	std::wstring strRet = wBuff;
 	return strRet;
 #else
+	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+	return converter.from_bytes(strSrc.c_str());
 #endif
 }
 
 std::string CommonConvert::Unicode_To_Uft8( std::wstring wstrValue )
 {
-	CHAR sBuff[102400] = {0};
 #ifdef WIN32
+	CHAR sBuff[102400] = { 0 };
 	WideCharToMultiByte(CP_UTF8, 0, wstrValue.c_str(), -1, sBuff, 102400, NULL, NULL);
 	std::string strRet = sBuff;
 	return strRet;
 #else
+	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+	return converter.to_bytes(wstrValue.c_str());
+
 #endif
 }
 
 std::wstring CommonConvert::Ansi_To_Unicode( std::string strSrc )
 {
 	wchar_t wBuff[102400] = {0};
-	CHAR sBuff[102400] = {0};
 #ifdef WIN32
 	MultiByteToWideChar(CP_ACP,  0, strSrc.c_str(), -1, wBuff, 102400);
 	std::wstring strRet = wBuff;
 	return strRet;
 #else
+	setlocale(LC_CTYPE, "chs");
+	std::mbstowcs(wBuff, strSrc.c_str(), 102400);
 #endif
 }
 
 std::string CommonConvert::Unicode_To_Ansi( std::wstring strValue )
 {
-	CHAR sBuff[102400] = {0};
+	CHAR sBuff[102400] = { 0 };
 #ifdef WIN32
 	WideCharToMultiByte(CP_ACP, 0, strValue.c_str(), -1, sBuff, 102400, NULL, NULL);
 	return std::string(sBuff);
 #else
-
+	setlocale(LC_CTYPE, "chs");
+	std::wcstombs(sBuff, strValue.c_str(), 102400);
 #endif
 }
 
@@ -439,6 +450,7 @@ std::string CommonConvert::Utf8_To_Ansi( std::string strSrc )
 	std::string strRet = sBuff;
 	return strRet;
 #else
+
 #endif
 }
 
@@ -454,6 +466,7 @@ std::string CommonConvert::Ansi_To_Uft8( std::string strSrc )
 #else
 #endif
 }
+*/
 
 BOOL CommonConvert::IsTextUTF8(const char* str, UINT32 length)
 {
@@ -514,12 +527,13 @@ BOOL CommonConvert::IsTextUTF8(const char* str, UINT32 length)
 	}
 	if (bAllAscii) //如果全部都是ASCII, 说明不是UTF-8
 	{
-		return FALSE;
+		return TRUE;
 	}
 	return TRUE;
 }
 
-UINT32 CommonConvert::VersionToInt( std::string& strVersion )
+
+UINT32 CommonConvert::VersionToInt(const std::string& strVersion )
 {
 	INT32 nValue[3] = { 0 };
 	StringToVector(strVersion.c_str(), nValue, 3, '.');
@@ -549,6 +563,33 @@ INT32 CommonConvert::CountSymbol(char* pStr, char cSymbol )
 	return nCount;
 }
 
+BOOL CommonConvert::HasSymbol(const char* pStr, const char* pszSymbol)
+{
+	if (pStr == NULL || pszSymbol == NULL)
+	{
+		return FALSE;
+	}
+
+	const char* pSym = pszSymbol;
+	while (*pSym != '\0')
+	{
+		const char* pTemp = pStr;
+		while (*pTemp != '\0')
+		{
+			if (*pTemp == *pSym)
+			{
+				return TRUE;
+			}
+
+			pTemp += 1;
+		}
+
+		pSym += 1;
+	}
+
+	return FALSE;
+}
+
 BOOL CommonConvert::StringTrim(std::string& strValue)
 {
 	if(!strValue.empty())
@@ -556,5 +597,27 @@ BOOL CommonConvert::StringTrim(std::string& strValue)
 		strValue.erase(0, strValue.find_first_not_of((" \n\r\t")));
 		strValue.erase(strValue.find_last_not_of((" \n\r\t")) + 1);
 	}
+	return TRUE;
+}
+
+BOOL CommonConvert::StrCopy(char* pszDest, const char* pszSrc, INT32 nLen)
+{
+	if (pszDest == NULL || pszSrc == NULL)
+	{
+		return FALSE;
+	}
+
+	if (nLen <= 0)
+	{
+		return FALSE;
+	}
+
+	strncpy(pszDest, pszSrc, nLen - 1);
+
+	if (strlen(pszSrc) >= nLen)
+	{
+		return FALSE;
+	}
+
 	return TRUE;
 }
