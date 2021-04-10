@@ -237,12 +237,6 @@ BOOL CNetManager::WorkThread_ProcessEvent(UINT32 nParam)
 					{
 						if(!pConnection->HandleRecvEvent(dwNumOfByte))
 						{
-							//收数据失败，基本就是连接己断开
-							if(pConnection->GetConnectionID() != pIoPeratorData->dwConnID)
-							{
-								CLog::GetInstancePtr()->LogError("触发了NET_MSG_RECV4, 但连接己经被关闭重用了。nowid:%d, oldid:%d", pConnection->GetConnectionID(), pIoPeratorData->dwConnID);
-								break;
-							}
 							pConnection->Close();
 						}
 					}
@@ -814,7 +808,7 @@ BOOL CNetManager::SendMessageData(UINT32 dwConnID,  UINT32 dwMsgID, UINT64 u64Ta
 
 	if(!pConn->IsConnectionOK())
 	{
-		CLog::GetInstancePtr()->LogError("CNetManager::SendMessageByConnID FAILED, 连接己断开");
+		CLog::GetInstancePtr()->LogError("CNetManager::SendMessageData FAILED, 连接己断开, MsgID:%d, dwConnID:%d", dwMsgID, dwConnID);
 		return FALSE;
 	}
 
@@ -845,6 +839,7 @@ BOOL CNetManager::SendMessageData(UINT32 dwConnID,  UINT32 dwMsgID, UINT64 u64Ta
 BOOL CNetManager::SendMessageBuff(UINT32 dwConnID, IDataBuffer* pBuffer)
 {
 	ERROR_RETURN_FALSE(dwConnID != 0);
+	ERROR_RETURN_FALSE(pBuffer != 0);
 	CConnection* pConn = CConnectionMgr::GetInstancePtr()->GetConnectionByID(dwConnID);
 	if(pConn == NULL)
 	{
@@ -854,7 +849,7 @@ BOOL CNetManager::SendMessageBuff(UINT32 dwConnID, IDataBuffer* pBuffer)
 
 	if(!pConn->IsConnectionOK())
 	{
-		CLog::GetInstancePtr()->LogError("CNetManager::SendMsgBufByConnID FAILED, 连接己断开");
+		CLog::GetInstancePtr()->LogError("CNetManager::SendMessageBuff FAILED, 连接己断开, ConnID:%d", dwConnID);
 		return FALSE;
 	}
 
